@@ -23,6 +23,8 @@ A wireless security research firmware for the ESP32 microcontroller. Built on to
 
 **Required**
 
+- Note: If you have a ESP32 S3 based version, look at the branch: `s3-N16R8` https://github.com/SameerAlSahab/ESP32-Deauther/tree/s3-N16R8
+
 - ESP32 DevKit V1 or any board based on the ESP32 (Xtensa LX6 dual-core) SoC. The firmware is developed and tested on the standard 38-pin DevKit V1. Other ESP32 variants with the same chip such as the ESP32-WROOM-32 and ESP32-WROVER modules are expected to work. ESP32-S2, S3, C3, and other variants are not supported as they use different hardware radio architectures.
 
 **Optional**
