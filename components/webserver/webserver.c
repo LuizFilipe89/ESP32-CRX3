@@ -383,7 +383,12 @@ static esp_err_t uri_portal_upload_handler(httpd_req_t *req) {
     }
     fclose(f);
 
-    /* Só agora, com o arquivo íntegro, troca o ativo de forma atômica. */
+    /* Install the new page. SPIFFS rename() FAILS if the destination already
+     * exists (SPIFFS_ERR_CONFLICTING_NAME), and the active page always exists,
+     * so the old file must be removed first. The tmp file is already fully
+     * written and closed; if power is lost in the tiny window between remove and
+     * rename, "Restore Default" rebuilds index.html from index.default.html. */
+    remove(PORTAL_ACTIVE_PATH);
     if (rename(PORTAL_TMP_PATH, PORTAL_ACTIVE_PATH) != 0) {
         unlink(PORTAL_TMP_PATH);
         ESP_LOGE(TAG, "Portal upload: rename() failed");
