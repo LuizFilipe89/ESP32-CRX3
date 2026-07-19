@@ -452,6 +452,47 @@
       </div>
     </div>
 
+    <!-- Custom Captive Portal -->
+    <div class="info-box info-warn" style="margin-top:20px;">
+      <div class="info-label">
+        <img src="/icons/tips.png" class="info-label-icon" alt="">
+        Custom Captive Portal
+      </div>
+      Upload your own HTML page (max 100 KB) to replace the Evil Twin captive portal.
+      The file must be self-contained (inline CSS/JS, no external files). It keeps the
+      form field name <code>password</code> and posts to <code>/submit</code> so
+      captured credentials are still logged.
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Portal Page</h3>
+        <span id="portal-state-badge" class="badge">…</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <label class="form-label" for="portal-file">HTML file (.html, ≤100 KB)</label>
+          <input type="file" id="portal-file" accept=".html,text/html">
+        </div>
+        <div style="margin-top:20px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button onclick="uploadPortal()" class="btn-primary">
+            <img src="/icons/rocket.png" style="width:18px;height:18px;filter:brightness(10);" alt="">
+            Upload
+          </button>
+          <a id="portal-preview-link" class="btn-secondary"
+             style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;"
+             href="/devil_twin/index.html" target="_blank" rel="noopener">
+            <img src="/icons/preview.png" class="btn-icon" alt="">
+            Preview
+          </a>
+          <button onclick="restorePortal()" class="btn-secondary">
+            <img src="/icons/restart.png" class="btn-icon" alt="">
+            Restore Default
+          </button>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <!-- About -->

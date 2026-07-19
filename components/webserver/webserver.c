@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
@@ -29,6 +30,11 @@
 
 static const char *TAG = "webserver";
 ESP_EVENT_DEFINE_BASE(WEBSERVER_EVENTS);
+
+#define PORTAL_ACTIVE_PATH  "/spiffs/devil_twin/index.html"
+#define PORTAL_TMP_PATH     "/spiffs/devil_twin/index.upload.tmp"
+#define PORTAL_DEFAULT_PATH "/spiffs/devil_twin/index.default.html"
+#define PORTAL_MAX_BYTES    (102400)   /* 100 KB hard ceiling */
 
 static httpd_handle_t server = NULL;
 static bool spiffs_mounted   = false;
@@ -239,6 +245,20 @@ static esp_err_t uri_evil_twin_status_handler(httpd_req_t *req) {
     return httpd_resp_send(req, json, strlen(json));
 }
 
+/** @brief Informa se o captive portal ativo é o padrão ou um personalizado. */
+static esp_err_t uri_portal_state_handler(httpd_req_t *req) {
+    uint8_t custom = 0;
+    nvs_handle_t nvs;
+    if (nvs_open("storage", NVS_READONLY, &nvs) == ESP_OK) {
+        nvs_get_u8(nvs, "portal_custom", &custom);   /* se não existir, custom fica 0 */
+        nvs_close(nvs);
+    }
+    char json[48];
+    snprintf(json, sizeof(json), "{\"custom\":%s}", custom ? "true" : "false");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, json, strlen(json));
+}
+
 
 /* ─────────────────────────── HEAD handlers ──────────────────────────────── */
 
@@ -291,6 +311,132 @@ static esp_err_t uri_log_post_handler(httpd_req_t *req) {
     fprintf(f, "%s", buf);
     fclose(f);
     return httpd_resp_sendstr(req, "Logged");
+}
+
+/**
+ * @brief Recebe um HTML de captive portal personalizado e o instala de forma atômica.
+ *
+ * Segurança:
+ *  - Rejeita Content-Length > PORTAL_MAX_BYTES (100 KB) antes de ler o corpo.
+ *  - Rejeita se o SPIFFS não tiver espaço livre suficiente (HTTP 507).
+ *  - Grava num arquivo temporário; só faz rename() por cima do ativo se o total
+ *    recebido bater com o Content-Length. Se algo falhar, o portal ativo antigo
+ *    permanece intacto (o .tmp órfão é removido).
+ */
+static esp_err_t uri_portal_upload_handler(httpd_req_t *req) {
+    int total = req->content_len;
+
+    if (total <= 0 || total > PORTAL_MAX_BYTES) {
+        ESP_LOGW(TAG, "Portal upload rejected: size %d (max %d)", total, PORTAL_MAX_BYTES);
+        httpd_resp_set_status(req, "413 Payload Too Large");
+        httpd_resp_sendstr(req, "File exceeds 100 KB limit.");
+        return ESP_FAIL;
+    }
+
+    /* Checagem de espaço livre real no SPIFFS (com margem de segurança). */
+    size_t fs_total = 0, fs_used = 0;
+    if (esp_spiffs_info("storage", &fs_total, &fs_used) == ESP_OK) {
+        size_t free_bytes = (fs_total > fs_used) ? (fs_total - fs_used) : 0;
+        /* Precisamos de espaço para o .tmp coexistir com o ativo atual + folga. */
+        if (free_bytes < (size_t)total + 8192) {
+            ESP_LOGE(TAG, "Portal upload: insufficient SPIFFS space (free=%u need=%d)",
+                     (unsigned)free_bytes, total + 8192);
+            httpd_resp_set_status(req, "507 Insufficient Storage");
+            httpd_resp_sendstr(req, "Not enough space on device.");
+            return ESP_FAIL;
+        }
+    }
+
+    FILE *f = fopen(PORTAL_TMP_PATH, "w");
+    if (f == NULL) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Cannot open temp file");
+        return ESP_FAIL;
+    }
+
+    char buf[1024];
+    int remaining = total;
+    while (remaining > 0) {
+        int to_read = (remaining < (int)sizeof(buf)) ? remaining : (int)sizeof(buf);
+        int r = httpd_req_recv(req, buf, to_read);
+        if (r <= 0) {
+            if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            fclose(f);
+            unlink(PORTAL_TMP_PATH);
+            ESP_LOGE(TAG, "Portal upload: recv error, aborting");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Receive error");
+            return ESP_FAIL;
+        }
+        if (fwrite(buf, 1, r, f) != (size_t)r) {
+            fclose(f);
+            unlink(PORTAL_TMP_PATH);
+            ESP_LOGE(TAG, "Portal upload: write error (disk full?), aborting");
+            httpd_resp_set_status(req, "507 Insufficient Storage");
+            httpd_resp_sendstr(req, "Write failed (disk full).");
+            return ESP_FAIL;
+        }
+        remaining -= r;
+    }
+    fclose(f);
+
+    /* Só agora, com o arquivo íntegro, troca o ativo de forma atômica. */
+    if (rename(PORTAL_TMP_PATH, PORTAL_ACTIVE_PATH) != 0) {
+        unlink(PORTAL_TMP_PATH);
+        ESP_LOGE(TAG, "Portal upload: rename() failed");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Install failed");
+        return ESP_FAIL;
+    }
+
+    /* Marca estado = personalizado na NVS. */
+    nvs_handle_t nvs;
+    if (nvs_open("storage", NVS_READWRITE, &nvs) == ESP_OK) {
+        nvs_set_u8(nvs, "portal_custom", 1);
+        nvs_commit(nvs);
+        nvs_close(nvs);
+    }
+
+    ESP_LOGI(TAG, "Custom captive portal installed (%d bytes)", total);
+    return httpd_resp_sendstr(req, "OK");
+}
+
+/** @brief Restaura o captive portal de fábrica copiando index.default.html sobre o ativo. */
+static esp_err_t uri_portal_restore_handler(httpd_req_t *req) {
+    FILE *src = fopen(PORTAL_DEFAULT_PATH, "r");
+    if (src == NULL) {
+        ESP_LOGE(TAG, "Restore: default portal file missing");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Default file missing");
+        return ESP_FAIL;
+    }
+    FILE *dst = fopen(PORTAL_ACTIVE_PATH, "w");
+    if (dst == NULL) {
+        fclose(src);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Cannot write active file");
+        return ESP_FAIL;
+    }
+
+    char buf[1024];
+    size_t n;
+    bool ok = true;
+    while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
+        if (fwrite(buf, 1, n, dst) != n) { ok = false; break; }
+    }
+    fclose(src);
+    fclose(dst);
+
+    if (!ok) {
+        ESP_LOGE(TAG, "Restore: copy failed");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Copy failed");
+        return ESP_FAIL;
+    }
+
+    nvs_handle_t nvs;
+    if (nvs_open("storage", NVS_READWRITE, &nvs) == ESP_OK) {
+        nvs_set_u8(nvs, "portal_custom", 0);
+        nvs_commit(nvs);
+        nvs_close(nvs);
+    }
+
+    ESP_LOGI(TAG, "Captive portal restored to factory default");
+    return httpd_resp_sendstr(req, "OK");
 }
 
 static esp_err_t uri_set_log_url_handler(httpd_req_t *req) {
@@ -365,6 +511,7 @@ static httpd_uri_t uri_download_pass = { .uri = "/download-pass",    .method = H
 static httpd_uri_t uri_get_log_url   = { .uri = "/get-log-url",      .method = HTTP_GET,  .handler = uri_get_log_url_handler };
 static httpd_uri_t uri_det_status    = { .uri = "/detector/status",  .method = HTTP_GET,  .handler = uri_detector_status_handler };
 static httpd_uri_t uri_evil_status   = { .uri = "/evil-twin-status", .method = HTTP_GET,  .handler = uri_evil_twin_status_handler };
+static httpd_uri_t uri_portal_state  = { .uri = "/devil_twin/portal-state", .method = HTTP_GET, .handler = uri_portal_state_handler };
 
 
 static httpd_uri_t uri_icons  = { .uri = "/icons/*",      .method = HTTP_GET, .handler = common_get_handler };
@@ -385,6 +532,8 @@ static httpd_uri_t uri_set_log_url   = { .uri = "/set-log-url",      .method = H
 static httpd_uri_t uri_det_start     = { .uri = "/detector/start",   .method = HTTP_POST, .handler = uri_detector_start_handler };
 static httpd_uri_t uri_det_stop      = { .uri = "/detector/stop",    .method = HTTP_POST, .handler = uri_detector_stop_handler };
 static httpd_uri_t uri_save_settings = { .uri = "/save_settings",    .method = HTTP_POST, .handler = save_settings_post_handler };
+static httpd_uri_t uri_portal_upload  = { .uri = "/devil_twin/upload",          .method = HTTP_POST, .handler = uri_portal_upload_handler };
+static httpd_uri_t uri_portal_restore = { .uri = "/devil_twin/restore-default", .method = HTTP_POST, .handler = uri_portal_restore_handler };
 
 
 /* ─────────────────────────── Public API ─────────────────────────────────── */
@@ -428,6 +577,8 @@ void webserver_run(void) {
     httpd_register_uri_handler(server, &uri_evil_status);
 
 
+    httpd_register_uri_handler(server, &uri_portal_state);   /* GET — antes do curinga /devil_twin/* */
+
     httpd_register_uri_handler(server, &uri_icons);
     httpd_register_uri_handler(server, &uri_fonts);
     httpd_register_uri_handler(server, &uri_dtwin);
@@ -446,8 +597,10 @@ void webserver_run(void) {
     httpd_register_uri_handler(server, &uri_det_start);
     httpd_register_uri_handler(server, &uri_det_stop);
     httpd_register_uri_handler(server, &uri_save_settings);
+    httpd_register_uri_handler(server, &uri_portal_upload);
+    httpd_register_uri_handler(server, &uri_portal_restore);
 
-    ESP_LOGI(TAG, "Webserver started — %d handlers registered.", 24);
+    ESP_LOGI(TAG, "Webserver started — %d handlers registered.", 27);
 }
 
 

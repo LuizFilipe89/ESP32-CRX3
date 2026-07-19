@@ -104,6 +104,7 @@ function switchTab(name) {
     document.querySelectorAll(".tab-panel").forEach(function (p) {
         p.classList.toggle("active", p.id === "tab-" + name);
     });
+    if (name === "settings") loadPortalState();
 }
 
 /* ── AP Scanning ─────────────────────────────────── */
@@ -885,6 +886,67 @@ function saveSettings() {
     .catch(function () {
         showDialog("Network error — the ESP32 may already be restarting.");
     });
+}
+
+/* ── Custom Captive Portal ───────────────────────── */
+var PORTAL_MAX_BYTES = 102400; /* 100 KB — deve casar com PORTAL_MAX_BYTES no firmware */
+
+function loadPortalState() {
+    var badge = document.getElementById("portal-state-badge");
+    if (!badge) return;
+    fetch('/devil_twin/portal-state')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        badge.textContent = d.custom ? "Custom" : "Default";
+    })
+    .catch(function () { badge.textContent = "?"; });
+}
+
+function uploadPortal() {
+    var input = document.getElementById("portal-file");
+    if (!input || !input.files || input.files.length === 0) {
+        showDialog("Choose an .html file first.");
+        return;
+    }
+    var file = input.files[0];
+    if (file.size === 0) { showDialog("File is empty."); return; }
+    if (file.size > PORTAL_MAX_BYTES) {
+        showDialog("File is " + Math.round(file.size / 1024) + " KB — the limit is 100 KB.");
+        return;
+    }
+    if (!confirm("Replace the Evil Twin captive portal with this file?")) return;
+
+    var reader = new FileReader();
+    reader.onload = function () {
+        fetch('/devil_twin/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/html' },
+            body: reader.result
+        })
+        .then(function (r) {
+            if (r.ok) {
+                showDialog("Custom portal installed.");
+                loadPortalState();
+            } else {
+                return r.text().then(function (t) {
+                    showDialog("Upload failed: " + (t || r.status));
+                });
+            }
+        })
+        .catch(function (e) { showError("Network error: " + e); });
+    };
+    reader.onerror = function () { showError("Could not read the file."); };
+    reader.readAsText(file);
+}
+
+function restorePortal() {
+    if (!confirm("Restore the factory-default captive portal? Your custom page will be replaced.")) return;
+    fetch('/devil_twin/restore-default', { method: 'POST' })
+    .then(function (r) {
+        if (r.ok) { showDialog("Default portal restored."); loadPortalState(); }
+        else showDialog("Restore failed.");
+    })
+    .catch(function (e) { showError("Network error: " + e); });
 }
 
 /* ── Custom log URL ──────────────────────────────── */
