@@ -79,8 +79,9 @@ static esp_err_t serve_file(httpd_req_t *req, const char *filepath) {
     else if (strstr(filepath, ".png"))  httpd_resp_set_type(req, "image/png");
     else if (strstr(filepath, ".jpg") || strstr(filepath, ".jpeg"))
         httpd_resp_set_type(req, "image/jpeg");
-    else if (strstr(filepath, ".ttf") || strstr(filepath, ".woff") || strstr(filepath, ".woff2"))
-        httpd_resp_set_type(req, "font/ttf");
+    else if (strstr(filepath, ".woff2")) httpd_resp_set_type(req, "font/woff2");
+    else if (strstr(filepath, ".woff"))  httpd_resp_set_type(req, "font/woff");
+    else if (strstr(filepath, ".ttf"))   httpd_resp_set_type(req, "font/ttf");
     else if (strstr(filepath, ".pcap")) httpd_resp_set_type(req, "application/octet-stream");
     else if (strstr(filepath, ".txt"))  httpd_resp_set_type(req, "text/plain");
     else                                httpd_resp_set_type(req, "text/plain");
