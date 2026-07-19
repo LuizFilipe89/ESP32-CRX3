@@ -619,7 +619,7 @@ void webserver_run(void) {
     httpd_register_uri_handler(server, &uri_evil_status);
 
 
-    httpd_register_uri_handler(server, &uri_portal_state);   /* GET — antes do curinga /devil_twin/* */
+    httpd_register_uri_handler(server, &uri_portal_state);   /* GET — antes do curinga devil_twin */
     httpd_register_uri_handler(server, &uri_eviltwin_log);
 
     httpd_register_uri_handler(server, &uri_icons);
