@@ -106,9 +106,7 @@ static const char *get_attack_name(uint8_t type)
         case ATTACK_TYPE_BEACON_SPAM: return "Beacon Spam";
         case ATTACK_TYPE_PROBE:       return "Probe Attack";
         case ATTACK_TYPE_EVIL_TWIN:   return "Evil Twin";
-        case ATTACK_TYPE_BT_SPAM:     return "BT Spam";
         case ATTACK_TYPE_CLONE:       return "AP Clone";
-        case ATTACK_TYPE_BT_PAYLOAD:  return "BT Payload";
         default:                      return "Unknown";
     }
 }

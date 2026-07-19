@@ -506,7 +506,7 @@ static esp_err_t password_handler(httpd_req_t *req) {
  * @brief Admin control route served on the rogue AP itself. Because the management
  *        AP is offline while the rogue AP is broadcasting, the operator stops a
  *        custom (continuous) Evil Twin by connecting to the rogue Wi-Fi and opening
- *        http://192.168.4.1/hydra-admin-stop.
+ *        http://192.168.4.1/crx3-admin-stop.
  */
 static esp_err_t admin_stop_handler(httpd_req_t *req) {
     evil_twin_stop_requested = true;
@@ -575,7 +575,7 @@ static void start_captive_portal(void) {
 
     /* Operator control route — must be registered before the catch-all so it is not
      * swallowed by the captive portal. Used to stop a continuous rogue AP. */
-    httpd_uri_t admin_stop = {.uri = "/hydra-admin-stop", .method = HTTP_GET, .handler = admin_stop_handler};
+    httpd_uri_t admin_stop = {.uri = "/crx3-admin-stop", .method = HTTP_GET, .handler = admin_stop_handler};
     httpd_register_uri_handler(evil_server, &admin_stop);
 
     httpd_uri_t catchall = {.uri = "/*", .method = HTTP_GET, .handler = captive_handler};

@@ -21,16 +21,14 @@
  * 
  */
 typedef enum {
-    ATTACK_TYPE_PASSIVE,
-    ATTACK_TYPE_HANDSHAKE,
-    ATTACK_TYPE_PMKID,
-    ATTACK_TYPE_DOS,
-    ATTACK_TYPE_BEACON_SPAM,
-    ATTACK_TYPE_PROBE,
-    ATTACK_TYPE_EVIL_TWIN,
-    ATTACK_TYPE_BT_SPAM,
-    ATTACK_TYPE_CLONE,
-    ATTACK_TYPE_BT_PAYLOAD
+    ATTACK_TYPE_PASSIVE     = 0,
+    ATTACK_TYPE_HANDSHAKE   = 1,
+    ATTACK_TYPE_PMKID       = 2,
+    ATTACK_TYPE_DOS         = 3,
+    ATTACK_TYPE_BEACON_SPAM = 4,
+    ATTACK_TYPE_PROBE       = 5,
+    ATTACK_TYPE_EVIL_TWIN   = 6,
+    ATTACK_TYPE_CLONE       = 8   /* 7 (BT spam) and 9 (BT payload) removed */
 } attack_type_t;
 
 /**

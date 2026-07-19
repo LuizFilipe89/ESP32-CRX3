@@ -27,14 +27,12 @@
 
 #include "attack_probe.h"
 #include "attack_eviltwin.h"
-#include "bt_payload_attack.h"
 #include "management_helper.h"
 #include "attack_pmkid.h"
 #include "attack_handshake.h"
 #include "attack_dos.h"
 #include "attack_method.h"
 #include "attack_beacon_spam.h"
-#include "attack_bt_spam.h"
 #include "hydra_ssd1306_display.h"
 
 static const char* TAG = "attack";
@@ -95,17 +93,10 @@ static void attack_timeout(void* arg){
         case ATTACK_TYPE_EVIL_TWIN:
             restore_management_system();
             break;
-        case ATTACK_TYPE_BT_SPAM:
-            ESP_LOGI(TAG, "Abort BT SPAM attack...");
-            attack_bt_spam_stop();
-            break;
         case ATTACK_TYPE_CLONE:
             attack_method_super_clone_stop();
             wifictl_mgmt_ap_start();
             wifictl_restore_ap_mac();
-            break;
-        case ATTACK_TYPE_BT_PAYLOAD:
-            bt_payload_attack_stop();
             break;
         default:
             ESP_LOGE(TAG, "Unknown attack type. Cleanup skipped.");
@@ -117,9 +108,7 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
     attack_request_t *attack_request = (attack_request_t *) event_data;
 
     bool needs_ap = (attack_request->type != ATTACK_TYPE_BEACON_SPAM) &&
-    (attack_request->type != ATTACK_TYPE_BT_SPAM) &&
-    (attack_request->type != ATTACK_TYPE_PROBE) &&
-    (attack_request->type != ATTACK_TYPE_BT_PAYLOAD);
+    (attack_request->type != ATTACK_TYPE_PROBE);
 
     if (needs_ap) {
         if (attack_request->ap_count == 0 || attack_request->ap_count > MAX_ATTACK_TARGETS) {
@@ -145,7 +134,7 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
     attack_status.state = RUNNING;
     attack_status.type  = attack_config.type;
 
-    if ((attack_config.timeout > 0) && (attack_config.type != ATTACK_TYPE_BT_SPAM) && (attack_config.type != ATTACK_TYPE_EVIL_TWIN)) {
+    if ((attack_config.timeout > 0) && (attack_config.type != ATTACK_TYPE_EVIL_TWIN)) {
         ESP_ERROR_CHECK(esp_timer_start_once(attack_timeout_handle, (uint64_t)attack_config.timeout * 1000000));
     }
 
@@ -175,37 +164,6 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
         case ATTACK_TYPE_EVIL_TWIN:
             attack_method_evil_twin(attack_config.ap_records[0]);
             break;
-        case ATTACK_TYPE_BT_SPAM: {
-
-            // Initialize BLE spam system
-            attack_bt_spam_init();
-
-            // Convert method into device type
-            // Valid range: 1-25
-            int total_targets = 25;
-            int selected_type = (attack_config.method % total_targets) + 1;
-
-            // New config structure
-            bt_spam_config_t cfg = {
-                .device_type = selected_type,
-
-                // Legacy field (unused now)
-                .delay_seconds = 0,
-
-                // Extra delay between bursts
-                // 0 = maximum speed
-                // 10-20 = stable fast mode
-                // 50+ = slower
-                .delay_ms = 10,
-
-                // Reserved currently
-                .adv_type = 2
-            };
-
-            attack_bt_spam_start(&cfg);
-
-            break;
-        }
         case ATTACK_TYPE_CLONE:
             wifictl_mgmt_ap_stop();
             if (attack_config.target_count > 0 && attack_config.ap_records[0] != NULL) {
@@ -213,10 +171,6 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
             } else {
                 attack_update_status(FINISHED);
             }
-            break;
-        case ATTACK_TYPE_BT_PAYLOAD:
-            bt_payload_attack_init();
-            bt_payload_attack_start(attack_config.method > 0 ? attack_config.method : 1);
             break;
         default:
             ESP_LOGE(TAG, "Unknown attack type request.");

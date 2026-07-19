@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>HydraESP</title>
+  <title>crx3</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -22,7 +22,7 @@
     <div class="brand">
       <img src="/icons/logo.png" class="brand-icon" alt="">
       <div>
-        <span class="brand-name">Hydra-ESP</span>
+        <span class="brand-name">crx3</span>
       </div>
     </div>
     <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="Toggle light / dark mode">
@@ -47,15 +47,9 @@
   </button>
   <button class="nav-item" data-tab="rogue" onclick="switchTab('rogue')">
     <div class="nav-indicator">
-      <img src="/icons/wifi.png" class="nav-icon" alt="">
-    </div>
-    <span class="nav-label">Rogue AP</span>
-  </button>
-  <button class="nav-item" data-tab="log" onclick="switchTab('log'); loadEvilTwinLog();">
-    <div class="nav-indicator">
       <img src="/icons/eye.png" class="nav-icon" alt="">
     </div>
-    <span class="nav-label">Log</span>
+    <span class="nav-label">Evil Twin</span>
   </button>
   <button class="nav-item" data-tab="settings" onclick="switchTab('settings')">
     <div class="nav-indicator">
@@ -148,44 +142,6 @@
       </div>
     </div>
 
-      <!-- BT Payload options -->
-    <div id="bt-payload-controls" style="display:none; margin-top:12px; text-align:center;">
-      <div class="card">
-        <div class="card-body">
-          <div id="bt-status-container">
-            <span id="bt-connection-info">Checking Bluetooth status…</span>
-          </div>
-
-          <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:14px;">
-            <button onclick="setBtPayloadAndRun(1)" class="bt-payload-btn">Write to Notepad</button>
-            <button onclick="setBtPayloadAndRun(2)" class="bt-payload-btn">Play Rick Roll (YouTube)</button>
-            <button onclick="setBtPayloadAndRun(3)" class="bt-payload-btn">Set Warning Wallpaper *</button>
-            <button onclick="setBtPayloadAndRun(4)" class="bt-payload-btn">Grab Wi-Fi Passwords **</button>
-            <button onclick="setBtPayloadAndRun(5)" class="bt-payload-btn">Hydra God Mode</button>
-          </div>
-
-          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--md-outline-var);">
-            <label style="display:flex; align-items:center; gap:10px; margin-bottom:10px; cursor:pointer;">
-              <input type="checkbox" id="use-custom-url" onchange="toggleCustomUrl()"
-                     style="width:18px; height:18px; accent-color:var(--md-primary);">
-              <span style="font-size:0.85rem; color:var(--md-on-surface);">
-                Send to remote server (RequestBin, etc.)
-              </span>
-            </label>
-            <div id="custom-url-row" style="display:none;">
-              <input type="text" id="custom-url" placeholder="https://your.requestbin.com/…"
-                     style="margin-bottom:8px;">
-              <button class="btn-secondary" onclick="saveCustomUrl()">Save URL</button>
-            </div>
-          </div>
-
-          <div style="margin-top:14px;">
-            <button onclick="runBtPayloadAgain()" class="btn-tonal">↺ Run Again</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Result card -->
     <div id="result-section" style="display:none;">
       <div class="card">
@@ -237,9 +193,7 @@
               <button type="button" class="type-btn" onclick="selectAttackType(4,this)">Beacon Spam</button>
               <button type="button" class="type-btn" onclick="selectAttackType(5,this)">Ghost Mode</button>
               <button type="button" class="type-btn" onclick="selectAttackType(6,this)">Devil Twin</button>
-              <button type="button" class="type-btn" onclick="selectAttackType(7,this)">BLE Spam</button>
               <button type="button" class="type-btn" onclick="selectAttackType(8,this)">Super Clone</button>
-              <button type="button" class="type-btn" onclick="selectAttackType(9,this)">BT Payload</button>
             </div>
             <input type="hidden" id="attack_type" value="">
           </div>
@@ -293,7 +247,7 @@
       <div class="info-label">Stop</div>
       Mgmt AP drops while running. To stop: join
       <code id="rogue-stop-ssid">your SSID</code> → open
-      <code>http://192.168.4.1/hydra-admin-stop</code>.
+      <code>http://192.168.4.1/crx3-admin-stop</code>.
     </div>
 
     <div class="card">
@@ -313,14 +267,38 @@
       </div>
     </div>
 
-  </section>
+    <!-- Custom Captive Portal -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header">
+        <h3>Portal Page</h3>
+        <span id="portal-state-badge" class="badge">…</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <label class="form-label" for="portal-file">HTML file (.html, ≤100 KB)</label>
+          <input type="file" id="portal-file" accept=".html,text/html">
+        </div>
+        <div style="margin-top:20px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button onclick="uploadPortal()" class="btn-primary">
+            <img src="/icons/rocket.png" style="width:18px;height:18px;filter:brightness(10);" alt="">
+            Upload
+          </button>
+          <a id="portal-preview-link" class="btn-secondary"
+             style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;"
+             href="/devil_twin/index.html" target="_blank" rel="noopener">
+            <img src="/icons/preview.png" class="btn-icon" alt="">
+            Preview
+          </a>
+          <button onclick="restorePortal()" class="btn-secondary">
+            <img src="/icons/restart.png" class="btn-icon" alt="">
+            Restore Default
+          </button>
+        </div>
+      </div>
+    </div>
 
-
-
-  <!-- Captive Portal Log -->
-  <section id="tab-log" class="tab-panel">
-
-    <div class="card">
+    <!-- Captured credentials log -->
+    <div class="card" style="margin-top:20px;">
       <div class="card-header">
         <h3>Captured Credentials</h3>
         <span id="log-count-badge" class="badge">0 entries</span>
@@ -385,36 +363,6 @@
             <img src="/icons/restart.png"
                  style="width:18px; height:18px; filter:brightness(10);" alt="">
             Save &amp; Restart
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Custom Captive Portal -->
-    <div class="card" style="margin-top:20px;">
-      <div class="card-header">
-        <h3>Portal Page</h3>
-        <span id="portal-state-badge" class="badge">…</span>
-      </div>
-      <div class="card-body">
-        <div class="form-row">
-          <label class="form-label" for="portal-file">HTML file (.html, ≤100 KB)</label>
-          <input type="file" id="portal-file" accept=".html,text/html">
-        </div>
-        <div style="margin-top:20px; display:flex; gap:8px; flex-wrap:wrap;">
-          <button onclick="uploadPortal()" class="btn-primary">
-            <img src="/icons/rocket.png" style="width:18px;height:18px;filter:brightness(10);" alt="">
-            Upload
-          </button>
-          <a id="portal-preview-link" class="btn-secondary"
-             style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;"
-             href="/devil_twin/index.html" target="_blank" rel="noopener">
-            <img src="/icons/preview.png" class="btn-icon" alt="">
-            Preview
-          </a>
-          <button onclick="restorePortal()" class="btn-secondary">
-            <img src="/icons/restart.png" class="btn-icon" alt="">
-            Restore Default
           </button>
         </div>
       </div>

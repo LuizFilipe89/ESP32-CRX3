@@ -21,7 +21,6 @@
 #include "nvs.h"
 
 #include "attack_deauth_detector.h"
-#include "bt_payload_attack.h"
 #include "wifi_controller.h"
 #include "attack.h"
 #include "pcap_serializer.h"
@@ -166,17 +165,6 @@ static esp_err_t uri_capture_hccapx_get_handler(httpd_req_t *req) {
     return httpd_resp_send(req, (char *)hccapx_serializer_get(), sizeof(hccapx_t));
 }
 
-static esp_err_t uri_bt_status_handler(httpd_req_t *req) {
-    char json[256];
-    snprintf(json, sizeof(json),
-             "{\"connected\":%s,\"busy\":%s,\"name\":\"%s\",\"mac\":\"%s\"}",
-             bt_payload_is_connected() ? "true" : "false",
-             bt_payload_is_busy()      ? "true" : "false",
-             bt_payload_get_connected_name(),
-             bt_payload_get_connected_mac());
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_send(req, json, strlen(json));
-}
 
 static esp_err_t uri_download_pass_get_handler(httpd_req_t *req) {
     return serve_file(req, "/spiffs/passwords.txt");
@@ -286,23 +274,6 @@ static esp_err_t uri_run_attack_post_handler(httpd_req_t *req) {
     esp_event_post(WEBSERVER_EVENTS, WEBSERVER_EVENT_ATTACK_REQUEST,
                    &attack_request, sizeof(attack_request_t), portMAX_DELAY);
     return httpd_resp_send(req, NULL, 0);
-}
-
-static esp_err_t uri_bt_payload_set_handler(httpd_req_t *req) {
-    char buf[16];
-    int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
-    if (ret <= 0) return ESP_FAIL;
-    buf[ret] = '\0';
-
-    int payload = atoi(buf);
-    if (payload < 1 || payload > 5) payload = 1;
-    bt_payload_attack_set_payload(payload);
-    return httpd_resp_sendstr(req, "OK");
-}
-
-static esp_err_t uri_bt_payload_run_handler(httpd_req_t *req) {
-    bt_payload_attack_run_now();
-    return httpd_resp_sendstr(req, "OK");
 }
 
 static esp_err_t uri_log_post_handler(httpd_req_t *req) {
@@ -550,7 +521,6 @@ static httpd_uri_t uri_ap_list       = { .uri = "/ap-list",          .method = H
 static httpd_uri_t uri_status        = { .uri = "/status",           .method = HTTP_GET,  .handler = uri_status_get_handler };
 static httpd_uri_t uri_capture_pcap  = { .uri = "/capture.pcap",     .method = HTTP_GET,  .handler = uri_capture_pcap_get_handler };
 static httpd_uri_t uri_hccapx        = { .uri = "/capture.hccapx",   .method = HTTP_GET,  .handler = uri_capture_hccapx_get_handler };
-static httpd_uri_t uri_bt_status_get = { .uri = "/bt-status",        .method = HTTP_GET,  .handler = uri_bt_status_handler };
 static httpd_uri_t uri_download_pass = { .uri = "/download-pass",    .method = HTTP_GET,  .handler = uri_download_pass_get_handler };
 static httpd_uri_t uri_get_log_url   = { .uri = "/get-log-url",      .method = HTTP_GET,  .handler = uri_get_log_url_handler };
 static httpd_uri_t uri_det_status    = { .uri = "/detector/status",  .method = HTTP_GET,  .handler = uri_detector_status_handler };
@@ -570,8 +540,6 @@ static httpd_uri_t uri_reset  = { .uri = "/reset",        .method = HTTP_HEAD, .
 
 /* POST */
 static httpd_uri_t uri_run_attack    = { .uri = "/run-attack",       .method = HTTP_POST, .handler = uri_run_attack_post_handler };
-static httpd_uri_t uri_bt_payload_s  = { .uri = "/bt-payload-set",   .method = HTTP_POST, .handler = uri_bt_payload_set_handler };
-static httpd_uri_t uri_bt_payload_r  = { .uri = "/bt-payload-run",   .method = HTTP_POST, .handler = uri_bt_payload_run_handler };
 static httpd_uri_t uri_log_post      = { .uri = "/log",              .method = HTTP_POST, .handler = uri_log_post_handler };
 static httpd_uri_t uri_set_log_url   = { .uri = "/set-log-url",      .method = HTTP_POST, .handler = uri_set_log_url_handler };
 static httpd_uri_t uri_det_start     = { .uri = "/detector/start",   .method = HTTP_POST, .handler = uri_detector_start_handler };
@@ -617,7 +585,6 @@ void webserver_run(void) {
     httpd_register_uri_handler(server, &uri_status);
     httpd_register_uri_handler(server, &uri_capture_pcap);
     httpd_register_uri_handler(server, &uri_hccapx);
-    httpd_register_uri_handler(server, &uri_bt_status_get);
     httpd_register_uri_handler(server, &uri_download_pass);
     httpd_register_uri_handler(server, &uri_get_log_url);
     httpd_register_uri_handler(server, &uri_det_status);
@@ -638,8 +605,6 @@ void webserver_run(void) {
 
 
     httpd_register_uri_handler(server, &uri_run_attack);
-    httpd_register_uri_handler(server, &uri_bt_payload_s);
-    httpd_register_uri_handler(server, &uri_bt_payload_r);
     httpd_register_uri_handler(server, &uri_log_post);
     httpd_register_uri_handler(server, &uri_set_log_url);
     httpd_register_uri_handler(server, &uri_det_start);
@@ -650,7 +615,7 @@ void webserver_run(void) {
     httpd_register_uri_handler(server, &uri_eviltwin_log_clear);
     httpd_register_uri_handler(server, &uri_custom_evil_twin);
 
-    ESP_LOGI(TAG, "Webserver started — %d handlers registered.", 30);
+    ESP_LOGI(TAG, "Webserver started — %d handlers registered.", 27);
 }
 
 

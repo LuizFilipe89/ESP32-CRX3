@@ -8,9 +8,7 @@ var AttackTypeEnum  = {
     ATTACK_TYPE_BEACON_SPAM: 4,
     ATTACK_TYPE_PROBE:       5,
     ATTACK_TYPE_EVIL_TWIN:   6,
-    ATTACK_TYPE_BT_SPAM:     7,
-    ATTACK_TYPE_CLONE:       8,
-    ATTACK_TYPE_BT_PAYLOAD:  9
+    ATTACK_TYPE_CLONE:       8
 };
 
 var selectedApElements    = [];
@@ -21,7 +19,6 @@ var attack_timeout        = 0;
 var time_elapsed          = 0;
 var currentAttackType     = -1;
 var defaultAttackMethodsHTML = "";
-var btStatusTimer         = null;
 
 var DISCONNECTS_MGMT_AP = [
     AttackTypeEnum.ATTACK_TYPE_DOS,
@@ -32,8 +29,7 @@ AttackTypeEnum.ATTACK_TYPE_CLONE
 var NO_TIMEOUT_TYPES = [
     AttackTypeEnum.ATTACK_TYPE_HANDSHAKE,
 AttackTypeEnum.ATTACK_TYPE_PMKID,
-AttackTypeEnum.ATTACK_TYPE_EVIL_TWIN,
-AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD
+AttackTypeEnum.ATTACK_TYPE_EVIL_TWIN
 ];
 
 /* ── Boot ────────────────────────────────────────── */
@@ -50,7 +46,6 @@ window.onload = function () {
 function init() {
     getStatus();
     refreshAps();
-    loadCurrentUrl();
 }
 
 /* ── Theme toggle ────────────────────────────────── */
@@ -90,7 +85,7 @@ function switchTab(name) {
     document.querySelectorAll(".tab-panel").forEach(function (p) {
         p.classList.toggle("active", p.id === "tab-" + name);
     });
-    if (name === "settings") loadPortalState();
+    if (name === "rogue") { loadPortalState(); loadEvilTwinLog(); }
 }
 
 /* ── AP Scanning ─────────────────────────────────── */
@@ -101,7 +96,7 @@ function refreshAps() {
     updateSelectedCountBadge();
 
     var tbody = document.getElementById("ap-list");
-    tbody.innerHTML = '<tr><td colspan="4" class="table-empty-msg">Scanning… this may take a few seconds</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="table-empty-msg">Scanning… this may take a few seconds</td></tr>';
 
     var oReq = new XMLHttpRequest();
     oReq.responseType = "arraybuffer";
@@ -111,13 +106,13 @@ function refreshAps() {
         tbody.innerHTML = "";
         var buf = oReq.response;
         if (!buf || buf.byteLength === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="table-empty-msg err">No access points found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="table-empty-msg err">No access points found.</td></tr>';
             return;
         }
         var byteArray = new Uint8Array(buf);
         var count = Math.floor(byteArray.byteLength / 40);
         if (count === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="table-empty-msg err">No access points found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="table-empty-msg err">No access points found.</td></tr>';
             return;
         }
         for (var i = 0; i < count; i++) {
@@ -140,14 +135,13 @@ function refreshAps() {
             tr.innerHTML =
             '<td class="td-ssid">' + escapeHtml(apSsidMap[i]) + '</td>' +
             '<td class="td-bssid"><code>' + bssid + '</code></td>' +
-            '<td class="td-ch">' + (ch || '?') + '</td>' +
             '<td class="td-rssi"><span class="' + rssiClass + '">' + rssi + ' dBm</span></td>';
             tbody.appendChild(tr);
         }
     };
 
-    oReq.onerror   = function () { tbody.innerHTML = '<tr><td colspan="4" class="table-empty-msg err">Scan failed. Check connection to ESP32.</td></tr>'; };
-    oReq.ontimeout = function () { tbody.innerHTML = '<tr><td colspan="4" class="table-empty-msg err">Scan timed out.</td></tr>'; };
+    oReq.onerror   = function () { tbody.innerHTML = '<tr><td colspan="3" class="table-empty-msg err">Scan failed. Check connection to ESP32.</td></tr>'; };
+    oReq.ontimeout = function () { tbody.innerHTML = '<tr><td colspan="3" class="table-empty-msg err">Scan timed out.</td></tr>'; };
 
     oReq.open("GET", "http://192.168.4.1/ap-list", true);
     oReq.send();
@@ -166,9 +160,7 @@ function getMaxTargets() {
         return 1;
     }
     if (attackType === AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM) return 0;
-    if (attackType === AttackTypeEnum.ATTACK_TYPE_BT_SPAM)     return 0;
     if (attackType === AttackTypeEnum.ATTACK_TYPE_PROBE)       return 0;
-    if (attackType === AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD)  return 0;
     return 1;
 }
 
@@ -297,60 +289,11 @@ function updateConfigurableFields(el) {
         case AttackTypeEnum.ATTACK_TYPE_EVIL_TWIN:
             if (methodRow) methodRow.style.display = "none";
             break;
-        case AttackTypeEnum.ATTACK_TYPE_BT_SPAM:
-
-            document.getElementById("attack_timeout").value = 15;
-
-            if (methodRow)
-                methodRow.style.display = "block";
-
-        setAttackMethods([
-
-            // 1-8 Apple Audio
-            "Apple Audio 1",
-            "Apple Audio 2",
-            "Apple Audio 3",
-            "Apple Audio 4",
-            "Apple Audio 5",
-            "Apple Audio 6",
-            "Apple Audio 7",
-            "Apple Audio 8",
-
-            // 9-13 Apple Setup
-            "Apple Setup 1",
-            "Apple Setup 2",
-            "Apple Setup 3",
-            "Apple Setup 4",
-            "Apple Setup 5",
-
-            // 14-19 Samsung
-            "Samsung Buds 1",
-            "Samsung Buds 2",
-            "Samsung Buds 3",
-            "Samsung Buds 4",
-            "Samsung Buds 5",
-            "Samsung Random",
-
-            // 20-24 Google
-            "Fast Pair 1",
-            "Fast Pair 2",
-            "Fast Pair 3",
-            "Fast Pair 4",
-            "Google Random",
-
-            // 25
-            "Mixed Random"
-        ]);
-
-        break;
         case AttackTypeEnum.ATTACK_TYPE_CLONE:
             document.getElementById("attack_timeout").value = 5;
             if (noTimeoutNote) noTimeoutNote.style.display = "block";
             setAttackMethods(["Open Multiple Clones"]);
         break;
-        case AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD:
-            if (methodRow) methodRow.style.display = "none";
-            break;
     }
     enforceSelectionLimit();
 }
@@ -380,9 +323,7 @@ function runAttack() {
 
     var needsAp = (
         attackType !== AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM &&
-        attackType !== AttackTypeEnum.ATTACK_TYPE_BT_SPAM     &&
-        attackType !== AttackTypeEnum.ATTACK_TYPE_PROBE        &&
-        attackType !== AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD
+        attackType !== AttackTypeEnum.ATTACK_TYPE_PROBE
     );
 
     if (needsAp && selectedApElements.length === 0) {
@@ -460,10 +401,6 @@ function runAttack() {
         }
     }
 
-    if (attackType === AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD) {
-        startBtStatusPoll();
-    }
-
     if (infoEl) infoEl.textContent = attackTypeName(attackType);
 
     var oReq = new XMLHttpRequest();
@@ -534,7 +471,6 @@ function setResultVisible(v) {
 /* ── Show Result ─────────────────────────────────── */
 function showResult(status, attack_type, content_size, content) {
     stopProgressTimer();
-    stopBtStatusPoll();
     document.getElementById("running-section").style.display = "none";
     document.getElementById("result-section").style.display  = "block";
 
@@ -572,17 +508,6 @@ function showResult(status, attack_type, content_size, content) {
             break;
         case AttackTypeEnum.ATTACK_TYPE_EVIL_TWIN:
             fetchEvilTwinResult();
-            break;
-        case AttackTypeEnum.ATTACK_TYPE_BT_SPAM:
-            document.getElementById("result-body").innerHTML =
-            '<p class="result-desc">BLE Spam finished. Nearby iOS / macOS devices should have seen popups.</p>';
-            break;
-        case AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD:
-            document.getElementById("result-body").innerHTML =
-            '<div class="result-block"><p class="result-desc">Payload executed via HID attack.</p>' +
-            '<a class="btn-primary" style="text-decoration:none;display:inline-block;margin-top:12px;"' +
-            '   href="http://192.168.4.1/download-pass" download="wifi_passwords.txt">Download Passwords</a>' +
-            '</div>';
             break;
         default:
             document.getElementById("result-body").innerHTML =
@@ -699,7 +624,6 @@ function fetchEvilTwinResult() {
 /* ── Reset attack ────────────────────────────────── */
 function resetAttack() {
     stopProgressTimer();
-    stopBtStatusPoll();
     document.getElementById("result-section").style.display        = "none";
     document.getElementById("running-section").style.display       = "none";
     document.getElementById("attack-config-section").style.display = "block";
@@ -748,20 +672,11 @@ function showRunning(attack_type) {
     var infoEl     = document.getElementById("running-attack-info");
     var beaconWrap = document.getElementById("beacon-timer-wrap");
     var simpleWrap = document.getElementById("simple-running-wrap");
-    var btControls = document.getElementById("bt-payload-controls");
 
     if (infoEl) infoEl.textContent = attackTypeName(attack_type);
 
-    if (attack_type === AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD) {
-        if (beaconWrap) beaconWrap.style.display = "none";
-        if (simpleWrap) simpleWrap.style.display = "block";
-        if (btControls) btControls.style.display = "block";
-        startBtStatusPoll();
-    } else {
-        if (beaconWrap) beaconWrap.style.display = (attack_type === AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM) ? "block" : "none";
-        if (simpleWrap) simpleWrap.style.display = (attack_type === AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM) ? "none"  : "block";
-        if (btControls) btControls.style.display = "none";
-    }
+    if (beaconWrap) beaconWrap.style.display = (attack_type === AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM) ? "block" : "none";
+    if (simpleWrap) simpleWrap.style.display = (attack_type === AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM) ? "none"  : "block";
 
     switchTab("attack");
 }
@@ -788,66 +703,6 @@ function closeDialog() {
     document.getElementById("dialog-overlay").classList.add("hidden");
 }
 
-
-/* ── BT Payload helpers ──────────────────────────── */
-function setBtPayload(payload) {
-    fetch('/bt-payload-set', { method: 'POST', body: String(payload) })
-    .then(function (response) {
-        if (response.ok) showDialog("BT Payload changed to " + payload + ". Will take effect on next connection.");
-        else             showError("Failed to set payload.");
-    })
-    .catch(function (err) { showError("Network error: " + err); });
-}
-
-function setBtPayloadAndRun(payload) {
-    fetch('/bt-payload-set', { method: 'POST', body: String(payload) })
-    .then(function (res) {
-        if (res.ok) return fetch('/bt-payload-run', { method: 'POST' });
-        throw new Error("Failed to set payload");
-    })
-    .then(function () { showDialog("Payload " + payload + " executed successfully."); })
-    .catch(function (err) { showError("Error: " + err); });
-}
-
-function runBtPayloadAgain() {
-    fetch('/bt-payload-run', { method: 'POST' })
-    .then(function (res) {
-        if (res.ok) showDialog("Re-running payload…");
-        else        showError("Could not re-run payload.");
-    })
-    .catch(function (err) { showError("Network error: " + err); });
-}
-
-function startBtStatusPoll() {
-    if (btStatusTimer) return;
-    btStatusTimer = setInterval(updateBtStatus, 2000);
-}
-
-function stopBtStatusPoll() {
-    if (btStatusTimer) { clearInterval(btStatusTimer); btStatusTimer = null; }
-}
-
-function updateBtStatus() {
-    fetch('http://192.168.4.1/bt-status')
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-        var statusEl = document.getElementById("bt-connection-info");
-        var buttons  = document.querySelectorAll(".bt-payload-btn");
-        if (!statusEl) return;
-        if (data.connected) {
-            statusEl.textContent = "Connected: " + data.name + " (" + data.mac + ")";
-            statusEl.className   = "bt-info-connected";
-        } else {
-            statusEl.textContent = "Waiting for Bluetooth connection…";
-            statusEl.className   = "";
-        }
-        buttons.forEach(function (btn) {
-            btn.disabled      = data.busy || !data.connected;
-            btn.style.opacity = (data.busy || !data.connected) ? "0.38" : "1";
-        });
-    })
-    .catch(function () {});
-}
 
 /* ── Settings ────────────────────────────────────── */
 function saveSettings() {
@@ -1018,52 +873,6 @@ function formatUptime(ms) {
     return (h > 0 ? h + "h " : "") + (m > 0 || h > 0 ? m + "m " : "") + s + "s";
 }
 
-/* ── Custom log URL ──────────────────────────────── */
-function toggleCustomUrl() {
-    var checkbox = document.getElementById("use-custom-url");
-    var row      = document.getElementById("custom-url-row");
-    row.style.display = checkbox.checked ? "block" : "none";
-    if (!checkbox.checked) {
-        fetch('/set-log-url', { method: 'POST', body: 'http://192.168.4.1/log' });
-    } else {
-        fetch('/get-log-url')
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            if (data.url && data.url !== 'http://192.168.4.1/log') {
-                document.getElementById("custom-url").value = data.url;
-            }
-        })
-        .catch(function () {});
-    }
-}
-
-function saveCustomUrl() {
-    var url = document.getElementById("custom-url").value.trim();
-    if (!url) { showDialog("Please enter a valid URL."); return; }
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        showDialog("URL must start with http:// or https://"); return;
-    }
-    fetch('/set-log-url', { method: 'POST', body: url })
-    .then(function () { showDialog("Exfiltration URL saved."); })
-    .catch(function () { showError("Failed to save URL."); });
-}
-
-function loadCurrentUrl() {
-    fetch('/get-log-url')
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-        if (data.url && data.url !== 'http://192.168.4.1/log') {
-            document.getElementById("use-custom-url").checked              = true;
-            document.getElementById("custom-url").value                    = data.url;
-            document.getElementById("custom-url-row").style.display        = "block";
-        } else {
-            document.getElementById("use-custom-url").checked              = false;
-            document.getElementById("custom-url-row").style.display        = "none";
-        }
-    })
-    .catch(function () {});
-}
-
 /* ── Copy helper ─────────────────────────────────── */
 function copyText(elemId, btn) {
     var text = document.getElementById(elemId).textContent;
@@ -1107,9 +916,7 @@ function attackTypeName(t) {
         case AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM: return "Beacon Spam";
         case AttackTypeEnum.ATTACK_TYPE_PROBE:       return "Ghost Mode (Probe Spam)";
         case AttackTypeEnum.ATTACK_TYPE_EVIL_TWIN:   return "Evil Twin";
-        case AttackTypeEnum.ATTACK_TYPE_BT_SPAM:     return "BLE Spam";
         case AttackTypeEnum.ATTACK_TYPE_CLONE:       return "Super Clone";
-        case AttackTypeEnum.ATTACK_TYPE_BT_PAYLOAD:  return "BT Payload (HID)";
         default: return "Unknown (" + t + ")";
     }
 }
