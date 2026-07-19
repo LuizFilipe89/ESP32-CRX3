@@ -949,6 +949,89 @@ function restorePortal() {
     .catch(function (e) { showError("Network error: " + e); });
 }
 
+/* ── Custom-name Evil Twin (Rogue AP) ────────────── */
+function launchCustomTwin() {
+    var ssid = document.getElementById('rogue-ssid').value.trim();
+    if (ssid.length < 1) { showDialog("Enter a network name (SSID) first."); return; }
+    var stopHint = 'To stop it later: connect to "' + ssid + '" and open http://192.168.4.1/hydra-admin-stop';
+    if (!confirm('Launch a rogue AP named "' + ssid + '"?\n\nThis management network will go OFFLINE while it runs.\n' + stopHint)) return;
+
+    fetch('/custom-evil-twin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'ssid=' + encodeURIComponent(ssid)
+    })
+    .then(function (r) {
+        if (r.ok) {
+            showDialog('Rogue AP "' + ssid + '" is starting — this page will disconnect. ' + stopHint + '. Then reconnect here and open the Log tab.');
+        } else {
+            showDialog("Failed to launch (status " + r.status + ").");
+        }
+    })
+    .catch(function () {
+        /* Expected: the management AP drops as the rogue AP comes up. */
+        showDialog('Rogue AP "' + ssid + '" is starting — this page disconnected, as expected. ' + stopHint + '.');
+    });
+}
+
+/* ── Captive Portal Log ──────────────────────────── */
+function loadEvilTwinLog() {
+    var tbody = document.getElementById("eviltwin-log-list");
+    var badge = document.getElementById("log-count-badge");
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" class="table-empty-msg">Loading…</td></tr>';
+
+    fetch('http://192.168.4.1/eviltwin-log')
+    .then(function (r) {
+        if (!r.ok) throw new Error("empty");
+        return r.text();
+    })
+    .then(function (text) {
+        var lines = text.split("\n").filter(function (l) { return l.trim().length > 0; });
+        if (lines.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="table-empty-msg">No credentials captured yet.</td></tr>';
+            if (badge) badge.textContent = "0 entries";
+            return;
+        }
+        tbody.innerHTML = "";
+        lines.reverse().forEach(function (line) {
+            var p = line.split("|");
+            if (p.length < 6) return;   /* uptime|ssid|bssid|username|password|status */
+            var ok = (p[5] === "SUCCESS" || p[5] === "CAPTURED");
+            var color = ok ? "#1a7f37" : "#b35c00";
+            var tr = document.createElement("tr");
+            tr.innerHTML =
+              '<td>' + formatUptime(parseInt(p[0], 10)) + '</td>' +
+              '<td>' + escapeHtml(p[1]) + '</td>' +
+              '<td>' + escapeHtml(p[3]) + '</td>' +
+              '<td><code>' + escapeHtml(p[4]) + '</code></td>' +
+              '<td><strong style="color:' + color + '">' + escapeHtml(p[5]) + '</strong></td>';
+            tbody.appendChild(tr);
+        });
+        if (badge) badge.textContent = lines.length + (lines.length === 1 ? " entry" : " entries");
+    })
+    .catch(function () {
+        tbody.innerHTML = '<tr><td colspan="5" class="table-empty-msg">No credentials captured yet.</td></tr>';
+        if (badge) badge.textContent = "0 entries";
+    });
+}
+
+function clearEvilTwinLog() {
+    if (!confirm("Delete the saved captive portal log? This cannot be undone.")) return;
+    fetch('/eviltwin-log/clear', { method: 'POST' })
+    .then(function () { loadEvilTwinLog(); })
+    .catch(function () { showError("Failed to clear log."); });
+}
+
+function formatUptime(ms) {
+    if (isNaN(ms)) return "—";
+    var totalSec = Math.floor(ms / 1000);
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    return (h > 0 ? h + "h " : "") + (m > 0 || h > 0 ? m + "m " : "") + s + "s";
+}
+
 /* ── Custom log URL ──────────────────────────────── */
 function toggleCustomUrl() {
     var checkbox = document.getElementById("use-custom-url");

@@ -15,6 +15,11 @@ void attack_method_broadcast_stop();
 
 void attack_method_evil_twin(const wifi_ap_record_t *ap_record);
 
+/** Starts an Evil Twin on an operator-chosen SSID (rogue AP, no deauth/verification). */
+void attack_method_evil_twin_custom(const char *ssid);
+/** Requests a running custom (continuous) Evil Twin to stop and restore management mode. */
+void attack_method_evil_twin_custom_stop(void);
+
 void attack_method_evil_twin_stop(void);
 bool is_evil_twin_active(void);
 const char* get_evil_twin_password(void);

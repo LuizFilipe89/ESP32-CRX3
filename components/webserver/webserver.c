@@ -182,6 +182,11 @@ static esp_err_t uri_download_pass_get_handler(httpd_req_t *req) {
     return serve_file(req, "/spiffs/passwords.txt");
 }
 
+/* Persistent Evil Twin capture log (uptime|ssid|bssid|username|password|status). */
+static esp_err_t uri_eviltwin_log_get_handler(httpd_req_t *req) {
+    return serve_file(req, "/spiffs/eviltwin_log.txt");
+}
+
 static esp_err_t uri_get_log_url_handler(httpd_req_t *req) {
     char url[256] = "http://192.168.4.1/log";
     nvs_handle_t nvs;
@@ -454,6 +459,40 @@ static esp_err_t uri_set_log_url_handler(httpd_req_t *req) {
     return httpd_resp_sendstr(req, "OK");
 }
 
+/** @brief Clears the persistent Evil Twin capture log. */
+static esp_err_t uri_eviltwin_log_clear_handler(httpd_req_t *req) {
+    remove("/spiffs/eviltwin_log.txt");
+    return httpd_resp_sendstr(req, "OK");
+}
+
+/**
+ * @brief Launches a custom-name (rogue AP) Evil Twin. Body: ssid=<name>.
+ *        The response is sent before the attack starts because starting it takes
+ *        down the management AP (the operator's browser will disconnect).
+ */
+static esp_err_t uri_custom_evil_twin_handler(httpd_req_t *req) {
+    char buf[128];
+    int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
+    if (ret <= 0) return ESP_FAIL;
+    buf[ret] = '\0';
+
+    char raw_ssid[96] = {0}, ssid[33] = {0};
+    if (httpd_query_key_value(buf, "ssid", raw_ssid, sizeof(raw_ssid)) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing ssid");
+    }
+    url_decode(ssid, raw_ssid);
+    ssid[32] = '\0';
+    if (ssid[0] == '\0') {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty ssid");
+    }
+
+    ESP_LOGI(TAG, "Launching custom rogue Evil Twin: '%s'", ssid);
+    httpd_resp_sendstr(req, "OK");           /* reply before the mgmt AP goes down */
+    vTaskDelay(pdMS_TO_TICKS(200));
+    attack_method_evil_twin_custom(ssid);
+    return ESP_OK;
+}
+
 static esp_err_t uri_detector_start_handler(httpd_req_t *req) {
     deauth_detector_start();
     return httpd_resp_send(req, "OK", 2);
@@ -512,6 +551,7 @@ static httpd_uri_t uri_get_log_url   = { .uri = "/get-log-url",      .method = H
 static httpd_uri_t uri_det_status    = { .uri = "/detector/status",  .method = HTTP_GET,  .handler = uri_detector_status_handler };
 static httpd_uri_t uri_evil_status   = { .uri = "/evil-twin-status", .method = HTTP_GET,  .handler = uri_evil_twin_status_handler };
 static httpd_uri_t uri_portal_state  = { .uri = "/devil_twin/portal-state", .method = HTTP_GET, .handler = uri_portal_state_handler };
+static httpd_uri_t uri_eviltwin_log  = { .uri = "/eviltwin-log",     .method = HTTP_GET,  .handler = uri_eviltwin_log_get_handler };
 
 
 static httpd_uri_t uri_icons  = { .uri = "/icons/*",      .method = HTTP_GET, .handler = common_get_handler };
@@ -534,6 +574,8 @@ static httpd_uri_t uri_det_stop      = { .uri = "/detector/stop",    .method = H
 static httpd_uri_t uri_save_settings = { .uri = "/save_settings",    .method = HTTP_POST, .handler = save_settings_post_handler };
 static httpd_uri_t uri_portal_upload  = { .uri = "/devil_twin/upload",          .method = HTTP_POST, .handler = uri_portal_upload_handler };
 static httpd_uri_t uri_portal_restore = { .uri = "/devil_twin/restore-default", .method = HTTP_POST, .handler = uri_portal_restore_handler };
+static httpd_uri_t uri_eviltwin_log_clear = { .uri = "/eviltwin-log/clear", .method = HTTP_POST, .handler = uri_eviltwin_log_clear_handler };
+static httpd_uri_t uri_custom_evil_twin   = { .uri = "/custom-evil-twin",   .method = HTTP_POST, .handler = uri_custom_evil_twin_handler };
 
 
 /* ─────────────────────────── Public API ─────────────────────────────────── */
@@ -556,7 +598,7 @@ void webserver_run(void) {
     init_spiffs();
 
     httpd_config_t config     = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers   = 30;
+    config.max_uri_handlers   = 34;
     config.uri_match_fn       = httpd_uri_match_wildcard;
 
     if (httpd_start(&server, &config) != ESP_OK) {
@@ -578,6 +620,7 @@ void webserver_run(void) {
 
 
     httpd_register_uri_handler(server, &uri_portal_state);   /* GET — antes do curinga /devil_twin/* */
+    httpd_register_uri_handler(server, &uri_eviltwin_log);
 
     httpd_register_uri_handler(server, &uri_icons);
     httpd_register_uri_handler(server, &uri_fonts);
@@ -599,8 +642,10 @@ void webserver_run(void) {
     httpd_register_uri_handler(server, &uri_save_settings);
     httpd_register_uri_handler(server, &uri_portal_upload);
     httpd_register_uri_handler(server, &uri_portal_restore);
+    httpd_register_uri_handler(server, &uri_eviltwin_log_clear);
+    httpd_register_uri_handler(server, &uri_custom_evil_twin);
 
-    ESP_LOGI(TAG, "Webserver started — %d handlers registered.", 27);
+    ESP_LOGI(TAG, "Webserver started — %d handlers registered.", 30);
 }
 
 

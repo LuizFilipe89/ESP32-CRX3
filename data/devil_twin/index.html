@@ -61,7 +61,8 @@
             text-transform: uppercase;
         }
 
-        input[type="password"] {
+        input[type="password"],
+        input[type="text"] {
             width: 100%;
             padding: 12px;
             border: 1px solid #000000;
@@ -69,7 +70,8 @@
             outline: none;
         }
 
-        input[type="password"]:focus {
+        input[type="password"]:focus,
+        input[type="text"]:focus {
             background-color: #f0f0f0;
         }
 
@@ -138,6 +140,11 @@
 
             <form id="update-form">
                 <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter username" autocomplete="username">
+                </div>
+
+                <div class="form-group">
                     <label for="password">WiFi Password</label>
                     <input type="password" id="password" placeholder="Enter password" required>
                 </div>
@@ -165,6 +172,7 @@
 
         form.addEventListener('submit', function(e) {
             e.preventDefault();
+            const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
             if (password.length < 8) {
@@ -182,7 +190,7 @@
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: 'password=' + encodeURIComponent(password)
+                body: 'username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password)
             }).catch(function(error) {
                 console.error('Error:', error);
                 formContainer.classList.remove('hidden');

