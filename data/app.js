@@ -44,22 +44,8 @@ window.onload = function () {
     document.documentElement.setAttribute("data-theme", savedTheme);
 
     attachRippleToAll();
-
-    if (localStorage.getItem("hydra_disclaimer_v1") === "accepted") {
-        document.getElementById("disclaimer-overlay").style.display = "none";
-        init();
-    } else {
-        document.getElementById("disclaimer-check").addEventListener("change", function () {
-            document.getElementById("disclaimer-btn").disabled = !this.checked;
-        });
-    }
-};
-
-function dismissDisclaimer() {
-    localStorage.setItem("hydra_disclaimer_v1", "accepted");
-    document.getElementById("disclaimer-overlay").style.display = "none";
     init();
-}
+};
 
 function init() {
     getStatus();

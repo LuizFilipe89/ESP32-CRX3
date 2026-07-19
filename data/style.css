@@ -1,11 +1,11 @@
 /* ═══════════════════════════════════════════════════
- *  ProjectHydraOS — style.css   Material You Edition
- *  Fonts: DM Sans (body) · IBM Plex Mono (code/tech)
- *  Themes: AMOLED dark  ·  Pure white light
+ *  ProjectHydraOS — style.css   Terminal Edition
+ *  Font: IBM Plex Mono (mono everywhere) · sharp corners · phosphor green
+ *  Themes: AMOLED dark  ·  light
  * ═══════════════════════════════════════════════════ */
 
 @font-face {
-    font-family: 'DM Sans';
+    font-family: 'IBM Plex Mono';
     src: url('/fonts/DMSans_18pt-Regular.woff2') format('woff2');
     font-weight: 400;
     font-style: normal;
@@ -27,7 +27,7 @@
     --md-surface-container-lo: #F0F2F8;
     --md-surface-container:    #E9EBF0;
     --md-surface-container-hi: #E2E5EB;
-    --md-surface-tint:         #0061A4;
+    --md-surface-tint:         #067A3E;
 
     /* On-surface */
     --md-on-surface:           #191C20;
@@ -35,11 +35,11 @@
     --md-outline:              #72777F;
     --md-outline-var:          #C2C7CF;
 
-    /* Primary — Blue */
-    --md-primary:              #0061A4;
+    /* Primary — Terminal green */
+    --md-primary:              #067A3E;
     --md-on-primary:           #FFFFFF;
-    --md-primary-container:    #D1E4FF;
-    --md-on-primary-container: #001D35;
+    --md-primary-container:    #9BF7BE;
+    --md-on-primary-container: #00210F;
 
     /* Secondary */
     --md-secondary:            #535F70;
@@ -63,13 +63,13 @@
     --md-success-container:    #8BF5A3;
     --md-on-success-container: #002109;
 
-    /* Shape */
-    --radius-xs: 4px;
-    --radius-sm: 8px;
-    --radius-md: 16px;
-    --radius-lg: 24px;
-    --radius-xl: 28px;
-    --radius-pill: 100px;
+    /* Shape — sharp/terminal look (no rounded corners) */
+    --radius-xs: 0;
+    --radius-sm: 0;
+    --radius-md: 0;
+    --radius-lg: 0;
+    --radius-xl: 0;
+    --radius-pill: 0;
 
     /* Elevation overlays (light: shadow-based) */
     --elevation-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.14);
@@ -81,7 +81,7 @@
 
     /* Icon treatment for light mode (white icons from PNG → invert to dark) */
     --icon-filter: invert(1) brightness(0);
-    --icon-filter-active: invert(21%) sepia(92%) saturate(1064%) hue-rotate(197deg) brightness(97%) contrast(104%);
+    --icon-filter-active: invert(38%) sepia(74%) saturate(560%) hue-rotate(93deg) brightness(93%) contrast(92%);
 }
 
 /* ── Material You — AMOLED Dark tokens ─────────── */
@@ -91,17 +91,17 @@
     --md-surface-container-lo: #1A1C1F;
     --md-surface-container:    #1F2124;
     --md-surface-container-hi: #282B2E;
-    --md-surface-tint:         #A8C7FA;
+    --md-surface-tint:         #35F58B;
 
-    --md-on-surface:           #E1E3E8;
-    --md-on-surface-var:       #C1C7CE;
-    --md-outline:              #8B9198;
-    --md-outline-var:          #41474D;
+    --md-on-surface:           #D6F5E2;
+    --md-on-surface-var:       #7FBF97;
+    --md-outline:              #3A6B4C;
+    --md-outline-var:          #1E3A28;
 
-    --md-primary:              #A8C7FA;
-    --md-on-primary:           #002E6B;
-    --md-primary-container:    #00449B;
-    --md-on-primary-container: #D8E2FF;
+    --md-primary:              #35F58B;
+    --md-on-primary:           #00230F;
+    --md-primary-container:    #0B3D22;
+    --md-on-primary-container: #7CFFB2;
 
     --md-secondary:            #BBC6D8;
     --md-on-secondary:         #253141;
@@ -126,7 +126,7 @@
 
     /* Icon treatment for dark mode (white PNG icons are already white — no filter) */
     --icon-filter: none;
-    --icon-filter-active: invert(80%) sepia(18%) saturate(614%) hue-rotate(188deg) brightness(110%) contrast(95%);
+    --icon-filter-active: invert(72%) sepia(60%) saturate(560%) hue-rotate(93deg) brightness(102%) contrast(96%);
 }
 
 /* ── Reset ──────────────────────────────────────── */
@@ -135,7 +135,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'IBM Plex Mono', system-ui, sans-serif;
     background: var(--md-bg);
     color: var(--md-on-surface);
     line-height: 1.55;
@@ -293,7 +293,7 @@ body {
 }
 
 .nav-label {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'IBM Plex Mono', sans-serif;
     font-size: 0.68rem;
     font-weight: 400;
     color: var(--md-on-surface-var);
@@ -348,7 +348,7 @@ body {
 }
 
 .card-header h3 {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'IBM Plex Mono', sans-serif;
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--md-on-surface);
@@ -416,7 +416,7 @@ body {
 
 /* Base — overriding the browser default */
 button {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'IBM Plex Mono', sans-serif;
     cursor: pointer;
     position: relative;
     overflow: hidden;
@@ -706,7 +706,7 @@ background: var(--md-primary);
 color: var(--md-on-primary);
 border: none;
 border-radius: var(--radius-pill);
-font-family: 'DM Sans', sans-serif;
+font-family: 'IBM Plex Mono', sans-serif;
 font-size: 0.9rem;
 font-weight: 700;
 letter-spacing: 0.5px;
@@ -789,7 +789,7 @@ input[type="password"] {
     border-radius: var(--radius-md);
     background: var(--md-surface-container-lo);
     color: var(--md-on-surface);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'IBM Plex Mono', sans-serif;
     font-size: 0.9rem;
     transition: border-color 200ms, box-shadow 200ms;
     outline: none;
@@ -865,7 +865,7 @@ input[type="number"] { width: auto; min-width: 80px; }
 .timeout-label {
     font-size: 0.88rem;
     color: var(--md-on-surface);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'IBM Plex Mono', sans-serif;
     cursor: pointer;
 }
 
@@ -1234,3 +1234,12 @@ color: var(--md-on-surface-var);
 
     .app-bar { position: sticky; }
 }
+
+/* ── Terminal / hacker flourishes ──────────────────── */
+.brand-name,
+.nav-label,
+.card-header h3 { text-transform: uppercase; letter-spacing: 1.5px; }
+
+.brand-name { text-shadow: 0 0 10px rgba(53, 245, 139, .55); }
+
+.card-header h3::before { content: "> "; color: var(--md-primary); }

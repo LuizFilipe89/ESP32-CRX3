@@ -4,89 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>HydraESP</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-
-
-<div id="disclaimer-overlay">
-  <div class="disclaimer-page">
-
-    <div class="disclaimer-header">
-      <img src="/icons/skull.png" class="disclaimer-header-icon" alt="">
-      <div>
-        <span class="disclaimer-logo-name">Hydra-ESP</span>
-        <span class="disclaimer-logo-ver">v1.1.3 — Authorised Use Only</span>
-      </div>
-    </div>
-
-    <div class="disclaimer-content">
-    <img src="/icons/warning.png" class="disclaimer-warn-tag" alt="">
-      <div class="disclaimer-warn-tag">Legal Notice &amp; Disclaimer</div>
-
-      <h1 class="disclaimer-title">Authorised Use Only</h1>
-      <p class="disclaimer-intro">
-        This firmware is an educational security research tool for the ESP32 microcontroller.
-        Read and understand the following before using any feature.
-      </p>
-
-      <div class="disclaimer-section">
-        <h2>You Must Have Permission</h2>
-        <p>You may only use this tool on networks and devices you own or have received
-           <strong>explicit, written authorisation</strong> to audit. Testing networks without
-           permission is illegal in most countries, including under the Computer Fraud and Abuse
-           Act (CFAA, US), the Computer Misuse Act (UK), the IT Act (India), and equivalent
-           legislation worldwide.</p>
-      </div>
-
-      <div class="disclaimer-section">
-        <h2>What This Tool Can Do</h2>
-        <p>Hydra-ESP can perform deauthentication attacks, handshake capture, PMKID capture,
-           Evil Twin attacks, beacon spam, BLE advertising, and rogue AP cloning. All of these
-           techniques can disrupt real wireless networks and constitute criminal offences if used
-           without authorisation.</p>
-      </div>
-
-      <div class="disclaimer-section">
-        <h2>Responsible Use</h2>
-        <ul>
-          <li>Only test in isolated lab environments or on your own equipment.</li>
-          <li>Never target public, commercial, or residential networks.</li>
-          <li>Do not use captures (PCAP, HCCAPX, PMKID) to access accounts you do not own.</li>
-          <li>Store captured data securely and delete it when no longer needed.</li>
-          <li>Be aware that 802.11 deauthentication affects all nearby devices on the channel.</li>
-        </ul>
-      </div>
-
-      <div class="disclaimer-section">
-        <h2>Liability</h2>
-        <p>The authors and contributors of HydraESP accept <strong>no liability</strong>
-           for misuse. You, the operator, are solely responsible for any harm, legal consequence,
-           or damage arising from your use of this firmware.</p>
-      </div>
-
-      <div class="disclaimer-section">
-        <h2>Applicable Laws (Examples)</h2>
-        <p>Unauthorised network testing may violate: the Computer Fraud &amp; Abuse Act, the
-           Wiretap Act, ECPA (US) · Computer Misuse Act (UK) · IT Act 2000 (Bangladesh / India)
-           · GDPR and local data-protection laws · Telecommunications regulations in your
-           jurisdiction. <em>This list is not exhaustive.</em></p>
-      </div>
-
-      <div class="disclaimer-agree-bar">
-        <label class="disclaimer-check-label">
-          <input type="checkbox" id="disclaimer-check">
-          <span>I have read and understood the above. I confirm I have explicit written authorisation
-                to test the target network(s). I accept full responsibility for my actions.</span>
-        </label>
-        <button id="disclaimer-btn" onclick="dismissDisclaimer()" disabled>Continue →</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 
 <div id="dialog-overlay" class="hidden">
@@ -158,15 +78,6 @@
     <!-- Scan -->
   <section id="tab-scan" class="tab-panel active">
 
-    <div class="info-box info-warn">
-      <div class="info-label">
-        <img src="/icons/tips.png" class="info-label-icon" alt="">
-        Authorised Use Only
-      </div>
-      Only test networks you own or have explicit written permission to audit.
-      Unauthorised use is a criminal offence in most jurisdictions.
-    </div>
-
     <div class="card">
       <div class="card-header">
         <h3>Nearby Wi-Fi Networks</h3>
@@ -194,47 +105,6 @@
           </button>
         </div>
       </div>
-    </div>
-
-
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:0 4px;">
-
-      <div class="info-box" style="margin:0; border-radius:var(--radius-lg);">
-        <div class="info-label">Twin Deauth</div>
-        Clones the target BSSID on the same channel. Bypasses MFP on modern devices.
-      </div>
-
-      <div class="info-box" style="margin:0; border-radius:var(--radius-lg);">
-        <div class="info-label">Packet Deauth</div>
-        Sends raw 802.11 deauth frames. Supports multi-target. Devices with 802.11w may resist.
-      </div>
-
-      <div class="info-box" style="margin:0; border-radius:var(--radius-lg);">
-        <div class="info-label">Handshake</div>
-        Captures WPA/WPA2 4-way handshake. Outputs <code>.pcap</code> &amp; <code>.hccapx</code>.
-      </div>
-
-      <div class="info-box" style="margin:0; border-radius:var(--radius-lg);">
-        <div class="info-label">PMKID</div>
-        Clientless — captures from first EAPOL-Key frame. Works on most WPA2 APs.
-      </div>
-
-      <div class="info-box" style="margin:0; border-radius:var(--radius-lg);">
-        <div class="info-label">Beacon Spam</div>
-        Floods airspace with fake beacons, polluting Wi-Fi scan lists on all nearby devices.
-      </div>
-
-      <div class="info-box" style="margin:0; border-radius:var(--radius-lg);">
-        <div class="info-label">Evil Twin</div>
-        Clones target AP and execute deauth. Fake Captive portal harvests the network password.
-      </div>
-
-      <div class="info-box" style="margin:0; grid-column:1/-1; border-radius:var(--radius-lg);">
-        <div class="info-label">Ghost Mode (Probe Spam)</div>
-        Exploits persistent device probing for saved networks. Clones those SSIDs so devices
-        attempt to associate with the ESP32 instead of the original AP.
-      </div>
-
     </div>
 
   </section>
@@ -294,13 +164,6 @@
             <button onclick="setBtPayloadAndRun(5)" class="bt-payload-btn">Hydra God Mode</button>
           </div>
 
-          <div class="info-box info-warn" style="text-align:left; margin:0 0 12px;">
-            <div class="info-label">Notes</div>
-            * Wallpaper may update fully only after a restart. Device must be online to download.<br>
-            ** Requires a remote server or request-bin to receive the password list.<br>
-            Most payloads target Windows. Use nRF Connect app for Android pairing.
-          </div>
-
           <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--md-outline-var);">
             <label style="display:flex; align-items:center; gap:10px; margin-bottom:10px; cursor:pointer;">
               <input type="checkbox" id="use-custom-url" onchange="toggleCustomUrl()"
@@ -319,10 +182,6 @@
           <div style="margin-top:14px;">
             <button onclick="runBtPayloadAgain()" class="btn-tonal">↺ Run Again</button>
           </div>
-          <p style="font-size:0.72rem; color:var(--md-on-surface-var); margin-top:10px;">
-            Selecting a payload executes it immediately on the connected device and sets it for
-            future reconnects.
-          </p>
         </div>
       </div>
     </div>
@@ -407,9 +266,7 @@
               <input type="number" id="attack_timeout" min="1" max="255" value="1">
             </div>
             <p class="form-hint" id="no-timeout-note" style="display:none; margin-top:10px;">
-              <strong>Warning:</strong> Without a timeout, the ESP32 management AP will disconnect
-              during this attack. You must <strong>power cycle</strong> the device to stop it and
-              regain access.
+              No timeout: mgmt AP drops during the attack — power cycle to stop.
             </p>
           </div>
 
@@ -433,26 +290,10 @@
   <section id="tab-rogue" class="tab-panel">
 
     <div class="info-box info-warn">
-      <div class="info-label">
-        <img src="/icons/warning.png" class="info-label-icon" alt="">
-        Custom-Name Evil Twin (Rogue AP)
-      </div>
-      Broadcasts an <strong>open</strong> Wi-Fi network with a name you choose, that does
-      <strong>not</strong> imitate any nearby network. There is no real network to attack,
-      so no deauth and no password verification happen — every credential typed into the
-      captive portal is simply saved to the Log. It keeps capturing until you stop it.
-    </div>
-
-    <div class="info-box info-warn">
-      <div class="info-label">
-        <img src="/icons/tips.png" class="info-label-icon" alt="">
-        How to stop it
-      </div>
-      While the rogue AP is up, this management network is offline, so this page will
-      disconnect. To stop it, connect a phone to your rogue network
-      (<code id="rogue-stop-ssid">the SSID you chose</code>) and open
-      <code>http://192.168.4.1/hydra-admin-stop</code>. The device then returns here and you
-      can review captures in the <strong>Log</strong> tab.
+      <div class="info-label">Stop</div>
+      Mgmt AP drops while running. To stop: join
+      <code id="rogue-stop-ssid">your SSID</code> → open
+      <code>http://192.168.4.1/hydra-admin-stop</code>.
     </div>
 
     <div class="card">
@@ -478,16 +319,6 @@
 
   <!-- Captive Portal Log -->
   <section id="tab-log" class="tab-panel">
-
-    <div class="info-box info-warn">
-      <div class="info-label">
-        <img src="/icons/tips.png" class="info-label-icon" alt="">
-        Captive Portal Log
-      </div>
-      Every username and password submitted through an Evil Twin captive portal is saved to
-      the ESP32's internal flash (SPIFFS), so it survives reboots and power loss with no
-      internet connection required.
-    </div>
 
     <div class="card">
       <div class="card-header">
@@ -536,15 +367,6 @@
   <!-- Settings -->
   <section id="tab-settings" class="tab-panel">
 
-    <div class="info-box info-warn">
-      <div class="info-label">
-        <img src="/icons/tips.png" class="info-label-icon" alt="">
-        Management AP Settings
-      </div>
-      Change the ESP32's own Wi-Fi network name and password. The device will reboot after
-      saving — reconnect using the new credentials.
-    </div>
-
     <div class="card">
       <div class="card-header"><h3>Update Credentials</h3></div>
       <div class="card-body">
@@ -554,7 +376,7 @@
         </div>
         <div class="form-row" style="margin-top:16px;">
           <label class="form-label" for="ap-pass">
-            New Password <span style="font-weight:400; text-transform:none; font-family:'Space Grotesk',sans-serif; letter-spacing:0;">(min 8 chars)</span>
+            New Password <span style="font-weight:400; text-transform:none; letter-spacing:0;">(min 8 chars)</span>
           </label>
           <input type="password" id="ap-pass" placeholder="Enter new password" autocomplete="new-password">
         </div>
@@ -569,18 +391,7 @@
     </div>
 
     <!-- Custom Captive Portal -->
-    <div class="info-box info-warn" style="margin-top:20px;">
-      <div class="info-label">
-        <img src="/icons/tips.png" class="info-label-icon" alt="">
-        Custom Captive Portal
-      </div>
-      Upload your own HTML page (max 100 KB) to replace the Evil Twin captive portal.
-      The file must be self-contained (inline CSS/JS, no external files). It keeps the
-      form field name <code>password</code> and posts to <code>/submit</code> so
-      captured credentials are still logged.
-    </div>
-
-    <div class="card">
+    <div class="card" style="margin-top:20px;">
       <div class="card-header">
         <h3>Portal Page</h3>
         <span id="portal-state-badge" class="badge">…</span>
@@ -613,16 +424,6 @@
 
   <!-- About -->
   <section id="tab-about" class="tab-panel">
-
-    <div class="info-box info-warn">
-      <div class="info-label">
-        <img src="/icons/tips.png" class="info-label-icon" alt="">
-        Legal Notice
-      </div>
-      Hydra-ESP is an educational security research tool for the ESP32. It must only be used
-      on networks you own or have explicit written authorisation to audit. Misuse is solely the
-      responsibility of the user.
-    </div>
 
     <div class="card">
       <div class="card-header">
