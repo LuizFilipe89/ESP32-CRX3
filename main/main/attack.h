@@ -23,12 +23,11 @@
 typedef enum {
     ATTACK_TYPE_PASSIVE     = 0,
     ATTACK_TYPE_HANDSHAKE   = 1,
-    ATTACK_TYPE_PMKID       = 2,
     ATTACK_TYPE_DOS         = 3,
     ATTACK_TYPE_BEACON_SPAM = 4,
     ATTACK_TYPE_PROBE       = 5,
-    ATTACK_TYPE_EVIL_TWIN   = 6,
-    ATTACK_TYPE_CLONE       = 8   /* 7 (BT spam) and 9 (BT payload) removed */
+    ATTACK_TYPE_EVIL_TWIN   = 6
+    /* 2 (PMKID), 7 (BT spam), 8 (Super Clone), 9 (BT payload) removed */
 } attack_type_t;
 
 /**
@@ -54,6 +53,7 @@ typedef struct {
     uint16_t timeout;
     const wifi_ap_record_t *ap_records[MAX_ATTACK_TARGETS]; // Array of pointers[cite: 3]
     uint8_t target_count;
+    uint8_t intensity;      ///< deauth frames per burst (1..10); DoS only, 0 = default
 } attack_config_t;
 
 /**

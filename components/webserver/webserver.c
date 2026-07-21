@@ -26,6 +26,7 @@
 #include "pcap_serializer.h"
 #include "hccapx_serializer.h"
 #include "attack_eviltwin.h"
+#include "printer.h"
 
 static const char *TAG = "webserver";
 ESP_EVENT_DEFINE_BASE(WEBSERVER_EVENTS);
@@ -514,6 +515,119 @@ static esp_err_t save_settings_post_handler(httpd_req_t *req) {
 }
 
 
+/* ─────────────────────────── Printer (port 9100) ────────────────────────── */
+
+/** POST /printer/connect — body: ap=<scan index>&pass=<url-encoded, optional> */
+static esp_err_t uri_printer_connect_handler(httpd_req_t *req) {
+    char buf[256];
+    int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
+    if (ret <= 0) return ESP_FAIL;
+    buf[ret] = '\0';
+
+    char ap_str[8] = {0}, raw_pass[128] = {0}, pass[96] = {0};
+    if (httpd_query_key_value(buf, "ap", ap_str, sizeof(ap_str)) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing ap");
+    }
+    if (httpd_query_key_value(buf, "pass", raw_pass, sizeof(raw_pass)) == ESP_OK) {
+        url_decode(pass, raw_pass);   /* optional — empty for open networks */
+    }
+    if (printer_connect((uint8_t) atoi(ap_str), pass) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Connect rejected");
+    }
+    return httpd_resp_sendstr(req, "OK");
+}
+
+/** GET /printer/status — {"state","ip","ssid"} */
+static esp_err_t uri_printer_status_handler(httpd_req_t *req) {
+    char ip[16] = {0}, ssid[33] = {0};
+    printer_conn_info(ip, sizeof(ip), ssid, sizeof(ssid));
+    char json[160];
+    snprintf(json, sizeof(json), "{\"state\":\"%s\",\"ip\":\"%s\",\"ssid\":\"%s\"}",
+             printer_conn_state_str(), ip, ssid);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, json);
+}
+
+/** POST /printer/scan — starts subnet scan for open port 9100 */
+static esp_err_t uri_printer_scan_handler(httpd_req_t *req) {
+    if (printer_scan_start() != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Not connected or busy");
+    }
+    return httpd_resp_sendstr(req, "OK");
+}
+
+/** GET /printer/scan-status — {"state","progress","printers":[...]} */
+static esp_err_t uri_printer_scan_status_handler(httpd_req_t *req) {
+    char *json = malloc(1024);
+    if (json == NULL) return ESP_FAIL;
+    int off = snprintf(json, 1024, "{\"state\":\"%s\",\"progress\":%d,\"printers\":[",
+                       printer_scan_state_str(), printer_scan_progress());
+    int n = printer_scan_count();
+    for (int i = 0; i < n && off < 1000; i++) {
+        const char *ip = printer_scan_ip(i);
+        if (ip == NULL) break;
+        off += snprintf(json + off, 1024 - off, "%s\"%s\"", i ? "," : "", ip);
+    }
+    snprintf(json + off, 1024 - off, "]}");
+    httpd_resp_set_type(req, "application/json");
+    esp_err_t r = httpd_resp_sendstr(req, json);
+    free(json);
+    return r;
+}
+
+/** POST /printer/print — body: copies=<n>&targets=<ip,ip,...>&text=<url-encoded> */
+static esp_err_t uri_printer_print_handler(httpd_req_t *req) {
+    int total = req->content_len;
+    if (total <= 0 || total > 16384) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Bad size");
+    }
+    char *body = malloc(total + 1);
+    if (body == NULL) return ESP_FAIL;
+    int received = 0;
+    while (received < total) {
+        int r = httpd_req_recv(req, body + received, total - received);
+        if (r <= 0) {
+            if (r == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            free(body);
+            return ESP_FAIL;
+        }
+        received += r;
+    }
+    body[received] = '\0';
+
+    char copies_str[8] = {0};
+    char targets[640] = {0};
+    httpd_query_key_value(body, "copies", copies_str, sizeof(copies_str));
+    if (httpd_query_key_value(body, "targets", targets, sizeof(targets)) != ESP_OK) {
+        free(body);
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No targets");
+    }
+
+    char *text = malloc(total + 1);
+    if (text == NULL) { free(body); return ESP_FAIL; }
+    text[0] = '\0';
+    char *tp = strstr(body, "text=");        /* text is the last field (never contains a raw '&') */
+    if (tp != NULL) url_decode(text, tp + 5);
+
+    esp_err_t pr = printer_print_start(targets, atoi(copies_str), text);
+    free(text);   /* printer_print_start copies it internally */
+    free(body);
+    if (pr != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Print rejected");
+    }
+    return httpd_resp_sendstr(req, "OK");
+}
+
+/** GET /printer/job-status — {"state","done","ok","total"} */
+static esp_err_t uri_printer_job_handler(httpd_req_t *req) {
+    char json[128];
+    snprintf(json, sizeof(json), "{\"state\":\"%s\",\"done\":%d,\"ok\":%d,\"total\":%d}",
+             printer_job_state_str(), printer_job_done(), printer_job_ok(), printer_job_total());
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, json);
+}
+
+
 /* ─────────────────────────── URI table ──────────────────────────────────── */
 
 static httpd_uri_t uri_root          = { .uri = "/",                 .method = HTTP_GET,  .handler = uri_root_get_handler };
@@ -527,6 +641,13 @@ static httpd_uri_t uri_det_status    = { .uri = "/detector/status",  .method = H
 static httpd_uri_t uri_evil_status   = { .uri = "/evil-twin-status", .method = HTTP_GET,  .handler = uri_evil_twin_status_handler };
 static httpd_uri_t uri_portal_state  = { .uri = "/devil_twin/portal-state", .method = HTTP_GET, .handler = uri_portal_state_handler };
 static httpd_uri_t uri_eviltwin_log  = { .uri = "/eviltwin-log",     .method = HTTP_GET,  .handler = uri_eviltwin_log_get_handler };
+
+static httpd_uri_t uri_prn_status      = { .uri = "/printer/status",      .method = HTTP_GET,  .handler = uri_printer_status_handler };
+static httpd_uri_t uri_prn_scan_status = { .uri = "/printer/scan-status", .method = HTTP_GET,  .handler = uri_printer_scan_status_handler };
+static httpd_uri_t uri_prn_job         = { .uri = "/printer/job-status",  .method = HTTP_GET,  .handler = uri_printer_job_handler };
+static httpd_uri_t uri_prn_connect     = { .uri = "/printer/connect",     .method = HTTP_POST, .handler = uri_printer_connect_handler };
+static httpd_uri_t uri_prn_scan        = { .uri = "/printer/scan",        .method = HTTP_POST, .handler = uri_printer_scan_handler };
+static httpd_uri_t uri_prn_print       = { .uri = "/printer/print",       .method = HTTP_POST, .handler = uri_printer_print_handler };
 
 
 static httpd_uri_t uri_icons  = { .uri = "/icons/*",      .method = HTTP_GET, .handler = common_get_handler };
@@ -571,7 +692,7 @@ void webserver_run(void) {
     init_spiffs();
 
     httpd_config_t config     = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers   = 34;
+    config.max_uri_handlers   = 42;
     config.uri_match_fn       = httpd_uri_match_wildcard;
 
     if (httpd_start(&server, &config) != ESP_OK) {
@@ -614,6 +735,13 @@ void webserver_run(void) {
     httpd_register_uri_handler(server, &uri_portal_restore);
     httpd_register_uri_handler(server, &uri_eviltwin_log_clear);
     httpd_register_uri_handler(server, &uri_custom_evil_twin);
+
+    httpd_register_uri_handler(server, &uri_prn_status);
+    httpd_register_uri_handler(server, &uri_prn_scan_status);
+    httpd_register_uri_handler(server, &uri_prn_job);
+    httpd_register_uri_handler(server, &uri_prn_connect);
+    httpd_register_uri_handler(server, &uri_prn_scan);
+    httpd_register_uri_handler(server, &uri_prn_print);
 
     ESP_LOGI(TAG, "Webserver started — %d handlers registered.", 27);
 }

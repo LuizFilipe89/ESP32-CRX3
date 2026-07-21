@@ -17,10 +17,10 @@
  * 
  */
 typedef enum{
-    ATTACK_DOS_METHOD_ROGUE_AP,
-    ATTACK_DOS_METHOD_BROADCAST,
-    ATTACK_DOS_METHOD_COMBINE_ALL,
-    ATTACK_DOS_METHOD_SUPER_CLONE
+    ATTACK_DOS_METHOD_ROGUE_AP    = 0,
+    ATTACK_DOS_METHOD_BROADCAST   = 1,
+    ATTACK_DOS_METHOD_SUPER_CLONE = 3,   ///< "Multi-Clone Deauth" in the web UI
+    ATTACK_DOS_METHOD_TARGETED    = 4    ///< sniff associated clients and deauth each one directly
 } attack_dos_methods_t;
 
 /**

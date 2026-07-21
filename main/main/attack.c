@@ -28,7 +28,6 @@
 #include "attack_probe.h"
 #include "attack_eviltwin.h"
 #include "management_helper.h"
-#include "attack_pmkid.h"
 #include "attack_handshake.h"
 #include "attack_dos.h"
 #include "attack_method.h"
@@ -74,9 +73,6 @@ static void attack_timeout(void* arg){
     attack_update_status(TIMEOUT);
 
     switch(attack_status.type) {
-        case ATTACK_TYPE_PMKID:
-            attack_pmkid_stop();
-            break;
         case ATTACK_TYPE_HANDSHAKE:
             attack_handshake_stop();
             break;
@@ -92,11 +88,6 @@ static void attack_timeout(void* arg){
             break;
         case ATTACK_TYPE_EVIL_TWIN:
             restore_management_system();
-            break;
-        case ATTACK_TYPE_CLONE:
-            attack_method_super_clone_stop();
-            wifictl_mgmt_ap_start();
-            wifictl_restore_ap_mac();
             break;
         default:
             ESP_LOGE(TAG, "Unknown attack type. Cleanup skipped.");
@@ -121,7 +112,8 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
         .type         = attack_request->type,
         .method       = attack_request->method,
         .timeout      = attack_request->timeout,
-        .target_count = 0
+        .target_count = 0,
+        .intensity    = attack_request->intensity
     };
 
     for (int i = 0; i < attack_request->ap_count; i++) {
@@ -142,9 +134,6 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
 
 
     switch (attack_config.type) {
-        case ATTACK_TYPE_PMKID:
-            attack_pmkid_start(&attack_config);
-            break;
         case ATTACK_TYPE_HANDSHAKE:
             attack_handshake_start(&attack_config);
             break;
@@ -163,14 +152,6 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
             break;
         case ATTACK_TYPE_EVIL_TWIN:
             attack_method_evil_twin(attack_config.ap_records[0]);
-            break;
-        case ATTACK_TYPE_CLONE:
-            wifictl_mgmt_ap_stop();
-            if (attack_config.target_count > 0 && attack_config.ap_records[0] != NULL) {
-                attack_method_super_clone(attack_config.ap_records[0]);
-            } else {
-                attack_update_status(FINISHED);
-            }
             break;
         default:
             ESP_LOGE(TAG, "Unknown attack type request.");

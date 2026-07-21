@@ -101,12 +101,10 @@ static const char *get_attack_name(uint8_t type)
     switch (type) {
         case ATTACK_TYPE_PASSIVE:     return "Passive Cap";
         case ATTACK_TYPE_HANDSHAKE:   return "WPA Handshake";
-        case ATTACK_TYPE_PMKID:       return "PMKID Cap";
         case ATTACK_TYPE_DOS:         return "Deauth";
         case ATTACK_TYPE_BEACON_SPAM: return "Beacon Spam";
         case ATTACK_TYPE_PROBE:       return "Probe Attack";
         case ATTACK_TYPE_EVIL_TWIN:   return "Evil Twin";
-        case ATTACK_TYPE_CLONE:       return "AP Clone";
         default:                      return "Unknown";
     }
 }

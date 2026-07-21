@@ -26,6 +26,35 @@ void attack_method_broadcast(const wifi_ap_record_t *ap_record, unsigned period_
 void attack_method_broadcast_stop();
 
 /**
+ * @brief Sets how many deauthentication frames are sent per burst (test intensity).
+ *
+ * Applies to both the broadcast and the targeted-client deauth methods. Higher
+ * values send more frames per 100 ms tick, making the test more aggressive.
+ *
+ * @param intensity frames per burst, clamped to <1,10>. 0 is treated as 1.
+ */
+void attack_method_set_intensity(uint8_t intensity);
+
+/**
+ * @brief Starts targeted client deauthentication.
+ *
+ * Puts the radio into promiscuous mode, learns the MAC addresses of clients
+ * associated with the given target AP(s), and repeatedly sends deauth +
+ * disassociation frames directed at each discovered client (plus a broadcast
+ * deauth fallback). Hops across the distinct target channels when needed.
+ *
+ * @param records     array of target AP records (BSSID + channel)
+ * @param count       number of targets in @p records
+ * @param intensity   frames per burst per client, clamped to <1,10>
+ */
+void attack_method_targeted_start(const wifi_ap_record_t **records, uint8_t count, uint8_t intensity);
+
+/**
+ * @brief Stops targeted client deauthentication and disables promiscuous mode.
+ */
+void attack_method_targeted_stop(void);
+
+/**
  * @brief Starts duplicated AP with same BSSID as genuine AP from ap_record
  *
  * This will execute deauthentication attack for given AP.
