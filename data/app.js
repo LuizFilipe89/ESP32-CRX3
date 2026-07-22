@@ -195,6 +195,39 @@ var I18N = {
             "about.desc.inspiration": "Inspired by deauth attack and Wi-Fi testing concepts from the ESP8266 Deauther project.",
             "about.role.ideas": "Ideas and some codes",
             "about.desc.ideas": "Inspired by the bluetooth spam attack from the Maruder and EvilAppleJuice project.",
+            "nav.printer": "Printers",
+
+            "prn.warnLabel": "Note",
+            "prn.channelHint": "Joining the target network makes the crx3 AP hop channel — your phone may briefly disconnect and reconnect. That's expected; just wait a few seconds.",
+            "prn.connectTitle": "Connect to Network",
+            "prn.network": "Network",
+            "prn.scanningNets": "Scanning networks…",
+            "prn.password": "Password",
+            "prn.passwordPh": "Leave empty for open networks",
+            "prn.connect": "Connect",
+            "prn.refreshNets": "Refresh",
+            "prn.connIdle": "Not connected",
+            "prn.connConnecting": "Connecting…",
+            "prn.connConnected": "Connected",
+            "prn.connFailed": "Connection failed",
+            "prn.scanTitle": "Find Printers",
+            "prn.scanHint": "Scans the connected network for devices with TCP port 9100 open.",
+            "prn.scan": "Scan",
+            "prn.scanning": "Scanning… {0}%",
+            "prn.scanDone": "Scan complete — {0} printer(s) found.",
+            "prn.scanNone": "No printers found on port 9100.",
+            "prn.printTitle": "Print",
+            "prn.text": "Text",
+            "prn.textPh": "Type the text to print…",
+            "prn.copies": "Copies",
+            "prn.print": "Print",
+            "prn.printSending": "Sending…",
+            "prn.printDone": "Done — {0}/{1} printer(s) succeeded.",
+            "prn.printFailed": "Print failed. Is the ESP32 connected to the network?",
+            "prn.noTargets": "Select at least one printer first.",
+            "prn.noNetwork": "Connect to a network first.",
+            "prn.noText": "Enter some text to print.",
+
             "about.fwTitle": "Firmware Info",
             "fw.version": "Version",
             "fw.soc": "SoC",
@@ -400,6 +433,39 @@ var I18N = {
             "about.desc.inspiration": "Inspirado nos conceitos de ataque deauth e testes de Wi-Fi do projeto ESP8266 Deauther.",
             "about.role.ideas": "Ideias e alguns códigos",
             "about.desc.ideas": "Inspirado no ataque de bluetooth spam dos projetos Marauder e EvilAppleJuice.",
+            "nav.printer": "Impressoras",
+
+            "prn.warnLabel": "Aviso",
+            "prn.channelHint": "Ao se conectar à rede alvo, o AP crx3 muda de canal — seu celular pode desconectar e reconectar brevemente. Isso é normal; basta aguardar alguns segundos.",
+            "prn.connectTitle": "Conectar à Rede",
+            "prn.network": "Rede",
+            "prn.scanningNets": "Escaneando redes…",
+            "prn.password": "Senha",
+            "prn.passwordPh": "Deixe vazio para redes abertas",
+            "prn.connect": "Conectar",
+            "prn.refreshNets": "Atualizar",
+            "prn.connIdle": "Não conectado",
+            "prn.connConnecting": "Conectando…",
+            "prn.connConnected": "Conectado",
+            "prn.connFailed": "Falha na conexão",
+            "prn.scanTitle": "Encontrar Impressoras",
+            "prn.scanHint": "Escaneia a rede conectada procurando dispositivos com a porta TCP 9100 aberta.",
+            "prn.scan": "Escanear",
+            "prn.scanning": "Escaneando… {0}%",
+            "prn.scanDone": "Escaneamento concluído — {0} impressora(s) encontrada(s).",
+            "prn.scanNone": "Nenhuma impressora encontrada na porta 9100.",
+            "prn.printTitle": "Imprimir",
+            "prn.text": "Texto",
+            "prn.textPh": "Digite o texto para imprimir…",
+            "prn.copies": "Cópias",
+            "prn.print": "Imprimir",
+            "prn.printSending": "Enviando…",
+            "prn.printDone": "Concluído — {0}/{1} impressora(s) com sucesso.",
+            "prn.printFailed": "Falha ao imprimir. O ESP32 está conectado à rede?",
+            "prn.noTargets": "Selecione pelo menos uma impressora primeiro.",
+            "prn.noNetwork": "Conecte-se a uma rede primeiro.",
+            "prn.noText": "Digite algum texto para imprimir.",
+
             "about.fwTitle": "Informações do Firmware",
             "fw.version": "Versão",
             "fw.soc": "SoC",
@@ -588,6 +654,7 @@ function switchTab(name) {
         p.classList.toggle("active", p.id === "tab-" + name);
     });
     if (name === "rogue") { loadPortalState(); loadEvilTwinLog(); }
+    if (name === "printer") { loadPrinterNetworks(); }
 }
 
 /* ── AP Scanning ─────────────────────────────────── */
@@ -1245,6 +1312,230 @@ function showAttackMethodInfo() {
     showInfo(info.title, info.items, currentName);
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  Printer tab — port 9100 raw/PJL print
+ * ═══════════════════════════════════════════════════════════════════════════ */
+var PRN_BASE = "http://192.168.4.1";
+var prn_conn_poll = null;
+var prn_scan_poll = null;
+var prn_job_poll  = null;
+
+function loadPrinterNetworks() {
+    var sel = document.getElementById("printer-network");
+    if (!sel) return;
+    sel.innerHTML = '<option value="">' + escapeHtml(t("prn.scanningNets")) + '</option>';
+
+    var oReq = new XMLHttpRequest();
+    oReq.responseType = "arraybuffer";
+    oReq.timeout = 15000;
+    oReq.onload = function () {
+        sel.innerHTML = "";
+        var buf = oReq.response;
+        if (!buf || buf.byteLength === 0) {
+            sel.innerHTML = '<option value="">' + escapeHtml(t("scan.noAps")) + '</option>';
+            return;
+        }
+        var byteArray = new Uint8Array(buf);
+        var count = Math.floor(byteArray.byteLength / 40);
+        if (count === 0) {
+            sel.innerHTML = '<option value="">' + escapeHtml(t("scan.noAps")) + '</option>';
+            return;
+        }
+        for (var i = 0; i < count; i++) {
+            var offset = i * 40;
+            var ssid = new TextDecoder("utf-8").decode(byteArray.subarray(offset, offset + 32)).replace(/\0/g, "").trim();
+            var opt = document.createElement("option");
+            opt.value = i;
+            opt.textContent = ssid || ("AP #" + i);
+            sel.appendChild(opt);
+        }
+    };
+    oReq.onerror = function () { sel.innerHTML = '<option value="">' + escapeHtml(t("scan.failed")) + '</option>'; };
+    oReq.ontimeout = function () { sel.innerHTML = '<option value="">' + escapeHtml(t("scan.timedOut")) + '</option>'; };
+    oReq.open("GET", PRN_BASE + "/ap-list", true);
+    oReq.send();
+}
+
+function printerConnect() {
+    var sel = document.getElementById("printer-network");
+    var pass = document.getElementById("printer-pass");
+    var statusEl = document.getElementById("printer-conn-status");
+    var scanBtn = document.getElementById("printer-scan-btn");
+
+    if (!sel || sel.value === "") { showDialog(t("prn.noNetwork")); return; }
+    var apIdx = sel.value;
+    var pwd = pass ? pass.value : "";
+
+    statusEl.textContent = t("prn.connConnecting");
+    statusEl.className = "prn-status";
+    if (scanBtn) scanBtn.disabled = true;
+
+    var body = "ap=" + encodeURIComponent(apIdx) + "&pass=" + encodeURIComponent(pwd);
+
+    fetch(PRN_BASE + "/printer/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body
+    })
+    .then(function (r) {
+        if (!r.ok) throw new Error("connect rejected");
+        if (prn_conn_poll) clearInterval(prn_conn_poll);
+        prn_conn_poll = setInterval(pollPrinterConn, 800);
+    })
+    .catch(function () {
+        statusEl.textContent = t("prn.connFailed");
+        statusEl.className = "prn-status err";
+    });
+}
+
+function pollPrinterConn() {
+    var statusEl = document.getElementById("printer-conn-status");
+    var scanBtn = document.getElementById("printer-scan-btn");
+
+    fetch(PRN_BASE + "/printer/status")
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (d.state === "connected") {
+            statusEl.textContent = t("prn.connConnected") + " — " + d.ip + " (" + d.ssid + ")";
+            statusEl.className = "prn-status ok";
+            if (scanBtn) scanBtn.disabled = false;
+            if (prn_conn_poll) { clearInterval(prn_conn_poll); prn_conn_poll = null; }
+        } else if (d.state === "failed") {
+            statusEl.textContent = t("prn.connFailed");
+            statusEl.className = "prn-status err";
+            if (prn_conn_poll) { clearInterval(prn_conn_poll); prn_conn_poll = null; }
+        } else {
+            statusEl.textContent = t("prn.connConnecting") + "…";
+        }
+    })
+    .catch(function () {
+        if (prn_conn_poll) { clearInterval(prn_conn_poll); prn_conn_poll = null; }
+        statusEl.textContent = t("prn.connFailed");
+        statusEl.className = "prn-status err";
+    });
+}
+
+function printerScan() {
+    var progressEl = document.getElementById("printer-scan-progress");
+    var listEl = document.getElementById("printer-list");
+    var scanBtn = document.getElementById("printer-scan-btn");
+
+    if (scanBtn) scanBtn.disabled = true;
+    listEl.innerHTML = "";
+    progressEl.textContent = t("prn.scanning", 0);
+
+    fetch(PRN_BASE + "/printer/scan", { method: "POST" })
+    .then(function (r) {
+        if (!r.ok) throw new Error("scan rejected");
+        if (prn_scan_poll) clearInterval(prn_scan_poll);
+        prn_scan_poll = setInterval(pollPrinterScan, 800);
+    })
+    .catch(function () {
+        progressEl.textContent = t("prn.printFailed");
+        progressEl.className = "prn-status err";
+        if (scanBtn) scanBtn.disabled = false;
+    });
+}
+
+function pollPrinterScan() {
+    var progressEl = document.getElementById("printer-scan-progress");
+    var listEl = document.getElementById("printer-list");
+    var scanBtn = document.getElementById("printer-scan-btn");
+
+    fetch(PRN_BASE + "/printer/scan-status")
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (d.state === "scanning") {
+            progressEl.textContent = t("prn.scanning", d.progress);
+        } else {
+            if (prn_scan_poll) { clearInterval(prn_scan_poll); prn_scan_poll = null; }
+            if (d.printers && d.printers.length > 0) {
+                progressEl.textContent = t("prn.scanDone", d.printers.length);
+                progressEl.className = "prn-status ok";
+                listEl.innerHTML = "";
+                d.printers.forEach(function (ip) {
+                    var lbl = document.createElement("label");
+                    lbl.className = "prn-check";
+                    lbl.innerHTML = '<input type="checkbox" value="' + escapeHtml(ip) + '" checked> ' + escapeHtml(ip);
+                    listEl.appendChild(lbl);
+                });
+            } else {
+                progressEl.textContent = t("prn.scanNone");
+                progressEl.className = "prn-status err";
+            }
+            if (scanBtn) scanBtn.disabled = false;
+        }
+    })
+    .catch(function () {
+        if (prn_scan_poll) { clearInterval(prn_scan_poll); prn_scan_poll = null; }
+        progressEl.textContent = t("prn.printFailed");
+        progressEl.className = "prn-status err";
+        if (scanBtn) scanBtn.disabled = false;
+    });
+}
+
+function printerPrint() {
+    var statusEl = document.getElementById("printer-print-status");
+    var textEl = document.getElementById("printer-text");
+    var copiesEl = document.getElementById("printer-copies");
+
+    var checks = document.querySelectorAll("#printer-list input[type=checkbox]:checked");
+    if (checks.length === 0) { showDialog(t("prn.noTargets")); return; }
+    var text = textEl ? textEl.value.trim() : "";
+    if (text === "") { showDialog(t("prn.noText")); return; }
+    var copies = copiesEl ? parseInt(copiesEl.value) || 1 : 1;
+    var ips = [];
+    checks.forEach(function (cb) { ips.push(cb.value); });
+
+    statusEl.textContent = t("prn.printSending");
+    statusEl.className = "prn-status";
+
+    var body = "copies=" + encodeURIComponent(copies) +
+               "&targets=" + encodeURIComponent(ips.join(",")) +
+               "&text=" + encodeURIComponent(text);
+
+    fetch(PRN_BASE + "/printer/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body
+    })
+    .then(function (r) {
+        if (!r.ok) throw new Error("print rejected");
+        if (prn_job_poll) clearInterval(prn_job_poll);
+        prn_job_poll = setInterval(pollPrinterJob, 600);
+    })
+    .catch(function () {
+        statusEl.textContent = t("prn.printFailed");
+        statusEl.className = "prn-status err";
+    });
+}
+
+function pollPrinterJob() {
+    var statusEl = document.getElementById("printer-print-status");
+
+    fetch(PRN_BASE + "/printer/job-status")
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        if (d.state === "printing") {
+            statusEl.textContent = t("prn.printSending") + " (" + d.done + "/" + d.total + ")";
+        } else {
+            if (prn_job_poll) { clearInterval(prn_job_poll); prn_job_poll = null; }
+            if (d.state === "done") {
+                statusEl.textContent = t("prn.printDone", d.ok, d.total);
+                statusEl.className = d.ok === d.total ? "prn-status ok" : "prn-status err";
+            } else {
+                statusEl.textContent = t("prn.printFailed");
+                statusEl.className = "prn-status err";
+            }
+        }
+    })
+    .catch(function () {
+        if (prn_job_poll) { clearInterval(prn_job_poll); prn_job_poll = null; }
+        statusEl.textContent = t("prn.printFailed");
+        statusEl.className = "prn-status err";
+    });
+}
 
 /* ── Settings ────────────────────────────────────── */
 function saveSettings() {
