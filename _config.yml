@@ -1,2 +1,16 @@
 theme: jekyll-theme-cayman
 title: ProjectHydra
+
+exclude:
+  - components/
+  - build/
+  - main/
+  - data/
+  - payloads/
+  - firmware_release/
+  - Doxyfile
+  - CMakeLists.txt
+  - partitions.csv
+  - sdkconfig
+  - sdkconfig.defaults
+  - dependencies.lock
