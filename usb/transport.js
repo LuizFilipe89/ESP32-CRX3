@@ -85,7 +85,10 @@ class Console {
 
   async connect(onStatus) {
     if ("serial" in navigator) {
-      const p = await navigator.serial.requestPort({ filters: [{ usbVendorId: 0x10C4 }] });
+      /* No vendorId filter: some Android Web Serial stacks report the CP210x
+       * with different descriptor details than desktop, so a strict filter
+       * can hide it from the picker entirely. Let the user pick manually. */
+      const p = await navigator.serial.requestPort();
       this.port = new WebSerialPort(p); this.transport = "serial";
     } else if ("usb" in navigator) {
       const d = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x10C4 }] });
