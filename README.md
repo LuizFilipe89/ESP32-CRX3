@@ -17,6 +17,8 @@
 
 A wireless security research firmware for the ESP32 microcontroller. Built on top of [risinek's](https://github.com/risinek/esp32-wifi-penetration-tool) original ESP32 Wi-Fi penetration tool foundation, ProjectHydraOS extends the original with a redesigned web interface, multi-target deauthentication, BLE attack capabilities, a deauth attack detector, optional OLED display support, and several additional attack modules.
 
+**🖥️ USB Control Panel:** [luizfilipe89.github.io/ESP32-CRX3/usb/](https://luizfilipe89.github.io/ESP32-CRX3/usb/) — control the device over USB (Web Serial/WebUSB), no Wi-Fi needed.
+
 ---
 
 ## Hardware
