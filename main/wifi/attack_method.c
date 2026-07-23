@@ -90,6 +90,12 @@ void attack_method_broadcast_stop() {
 
 void attack_method_rogueap(const wifi_ap_record_t *ap_record){
     ESP_LOGD(TAG, "Configuring Rogue AP");
+    /* esp_wifi_set_mac() requires the AP interface to be disabled, or it
+     * returns an error that ESP_ERROR_CHECK() turns into an abort() — i.e. the
+     * whole chip reboots. wifictl_mgmt_ap_stop() drops APSTA to STA-only
+     * (disabling the AP netif) so the MAC change is safe regardless of
+     * whether the caller already did this. */
+    wifictl_mgmt_ap_stop();
     wifictl_set_ap_mac(ap_record->bssid);
     wifi_config_t ap_config = {
         .ap = {

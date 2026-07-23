@@ -10,6 +10,8 @@
 #include "esp_wifi_types.h"
 #include "esp_netif.h"
 #include "esp_event.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -56,6 +58,11 @@ void wifictl_ap_start(wifi_config_t *wifi_config) {
         wifi_init_apsta();
     }
 
+    /* Re-assert APSTA unconditionally: callers that needed to change the AP
+     * MAC address (e.g. attack_method_rogueap) must first drop to STA-only
+     * mode (disabling the AP netif, required by esp_wifi_set_mac()), so the
+     * AP has to be explicitly re-enabled here rather than assumed already on. */
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, wifi_config));
     ESP_LOGI(TAG, "AP started with SSID=%s", wifi_config->ap.ssid);
 }
@@ -107,8 +114,19 @@ void wifictl_sta_disconnect(){
     ESP_ERROR_CHECK(esp_wifi_disconnect());
 }
 
+/* esp_wifi_set_mac(WIFI_IF_AP) only succeeds when the driver's mode is
+ * EXACTLY WIFI_MODE_AP (not STA, not NULL, not APSTA) at the moment of the
+ * call, following a stop()+start() cycle in that mode — empirically confirmed
+ * by probing every combination live (mode=STA/NULL/APSTA all returned
+ * ESP_ERR_WIFI_MODE regardless of stop/start ordering; only plain
+ * WIFI_MODE_AP worked). The caller is expected to restore APSTA afterward
+ * (wifictl_ap_start() does this unconditionally) before anything STA-based
+ * (raw frame TX, etc.) runs. */
 void wifictl_set_ap_mac(const uint8_t *mac_ap){
     ESP_LOGD(TAG, "Changing AP MAC address...");
+    ESP_ERROR_CHECK(esp_wifi_stop());
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_set_mac(WIFI_IF_AP, mac_ap));
 }
 
@@ -118,6 +136,9 @@ void wifictl_get_ap_mac(uint8_t *mac_ap){
 
 void wifictl_restore_ap_mac(){
     ESP_LOGD(TAG, "Restoring original AP MAC address...");
+    ESP_ERROR_CHECK(esp_wifi_stop());
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_set_mac(WIFI_IF_AP, original_mac_ap));
 }
 

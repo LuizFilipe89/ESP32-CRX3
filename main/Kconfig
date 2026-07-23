@@ -1,0 +1,19 @@
+menu "crx3 configuration"
+
+config CRX3_START_WEB_INTERFACE
+    bool "Start the web interface on boot"
+    default n
+    help
+        When enabled (y), the device serves the classic web control panel at
+        http://192.168.4.1 (SPIFFS web UI + captive-portal support for Evil
+        Twin).
+
+        When disabled (n, the default), the web UI / SPIFFS are not loaded and
+        the device is driven only through the USB serial console. The Wi-Fi
+        management AP radio still comes up because the attack engine needs it.
+
+        The web code always stays in the project — this option only gates
+        loading it at boot. Set it to y here (or run 'idf.py menuconfig') to
+        bring the web interface back.
+
+endmenu

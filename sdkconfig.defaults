@@ -2,3 +2,5 @@ CONFIG_ESP32_WIFI_NVS_ENABLED=n
 CONFIG_MGMT_AP_SSID="crx3"
 CONFIG_BT_ENABLED=n
 CONFIG_LWIP_MAX_SOCKETS=16
+# Serial-first: don't load the web interface at boot (set =y to bring it back)
+CONFIG_CRX3_START_WEB_INTERFACE=n

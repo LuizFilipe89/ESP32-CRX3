@@ -1830,6 +1830,12 @@ CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # end of Wi-Fi Provisioning Manager
 
 #
+# crx3 configuration
+#
+# CONFIG_CRX3_START_WEB_INTERFACE is not set
+# end of crx3 configuration
+
+#
 # Wi-Fi Controller
 #
 CONFIG_SCAN_MAX_AP=40

@@ -103,13 +103,10 @@ void attack_handshake_start(attack_config_t *attack_config){
     oled_log(OLED_HEAD, 3, "Handshake Active");
     oled_log(OLED_LINE1, 3, "Sniffing EAPOL...");
 
-    pcap_serializer_init();
-    hccapx_serializer_init(ap_record->ssid, strlen((char *)ap_record->ssid));
-    wifictl_sniffer_filter_frame_types(true, false, false);
-    wifictl_sniffer_start(ap_record->primary);
-    frame_analyzer_capture_start(SEARCH_HANDSHAKE, ap_record->bssid);
-    ESP_ERROR_CHECK(esp_event_handler_register(FRAME_ANALYZER_EVENTS, DATA_FRAME_EVENT_EAPOLKEY_FRAME, &eapolkey_frame_handler, NULL));
-
+    /* Rogue-AP setup (if selected) involves a full WiFi stop/start cycle to
+     * safely spoof the AP MAC (see wifictl_set_ap_mac()). Do this BEFORE
+     * enabling promiscuous mode below — stopping the driver mid-sniff would
+     * otherwise silently drop the RX callback. */
     switch(attack_config->method){
         case ATTACK_HANDSHAKE_METHOD_BROADCAST:
             ESP_LOGD(TAG, "ATTACK_HANDSHAKE_METHOD_BROADCAST");
@@ -125,6 +122,13 @@ void attack_handshake_start(attack_config_t *attack_config){
         default:
             ESP_LOGW(TAG, "Method unknown! Fallback to PASSIVE");
     }
+
+    pcap_serializer_init();
+    hccapx_serializer_init(ap_record->ssid, strlen((char *)ap_record->ssid));
+    wifictl_sniffer_filter_frame_types(true, false, false);
+    wifictl_sniffer_start(ap_record->primary);
+    frame_analyzer_capture_start(SEARCH_HANDSHAKE, ap_record->bssid);
+    ESP_ERROR_CHECK(esp_event_handler_register(FRAME_ANALYZER_EVENTS, DATA_FRAME_EVENT_EAPOLKEY_FRAME, &eapolkey_frame_handler, NULL));
 
 
     if (monitor_task_handle == NULL) {
@@ -142,8 +146,12 @@ void attack_handshake_stop(){
             attack_method_broadcast_stop();
             break;
         case ATTACK_HANDSHAKE_METHOD_ROGUE_AP:
-            wifictl_mgmt_ap_start();
+            /* esp_wifi_set_mac() needs the AP interface disabled — stop it,
+             * restore the original MAC, THEN re-enable (mirrors the same fix
+             * in attack_dos.c; restoring after re-enabling aborts the chip). */
+            wifictl_mgmt_ap_stop();
             wifictl_restore_ap_mac();
+            wifictl_mgmt_ap_start();
             break;
         case ATTACK_HANDSHAKE_METHOD_PASSIVE:
             break;

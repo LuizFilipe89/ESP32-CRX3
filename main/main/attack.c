@@ -68,11 +68,9 @@ char *attack_alloc_result_content(unsigned size) {
 }
 
 
-static void attack_timeout(void* arg){
-    ESP_LOGD(TAG, "Attack timed out");
-    attack_update_status(TIMEOUT);
-
-    switch(attack_status.type) {
+/* Per-type teardown, shared by the timeout handler and the manual stop. */
+static void attack_cleanup_by_type(uint8_t type) {
+    switch(type) {
         case ATTACK_TYPE_HANDSHAKE:
             attack_handshake_stop();
             break;
@@ -92,6 +90,21 @@ static void attack_timeout(void* arg){
         default:
             ESP_LOGE(TAG, "Unknown attack type. Cleanup skipped.");
     }
+}
+
+static void attack_timeout(void* arg){
+    ESP_LOGD(TAG, "Attack timed out");
+    attack_update_status(TIMEOUT);
+    attack_cleanup_by_type(attack_status.type);
+}
+
+void attack_stop_current(void){
+    if (attack_status.state != RUNNING) {
+        return;
+    }
+    ESP_LOGI(TAG, "Stopping current attack on request");
+    attack_update_status(FINISHED);
+    attack_cleanup_by_type(attack_status.type);
 }
 
 
