@@ -44,6 +44,7 @@ var I18N = {
             "common.copied": "Copied!",
             "common.unknown": "Unknown ({0})",
             "theme.toggleAria": "Toggle light / dark mode",
+            "usb.reconnectAria": "Reconnect USB",
 
             "nav.scan": "Scan",
             "nav.attack": "Attack",
@@ -285,6 +286,7 @@ var I18N = {
             "common.copied": "Copiado!",
             "common.unknown": "Desconhecido ({0})",
             "theme.toggleAria": "Alternar modo claro / escuro",
+            "usb.reconnectAria": "Reconectar USB",
 
             "nav.scan": "Escanear",
             "nav.attack": "Ataque",

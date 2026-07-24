@@ -143,10 +143,10 @@ class Console {
    * exits. Nothing else would ever restart it, silently leaving the fresh
    * reconnection with no read loop at all (strictly worse than before), so
    * this must explicitly kick off a new one afterward. */
-  async _maybeRecover(reason) {
+  async _maybeRecover(reason, force) {
     if (this._recovering) return;
     if (!this.connected || this.transport !== "usb" || !this.port || typeof this.port.recover !== "function") return;
-    if (Date.now() - this._lastRecoverAt < 15000) return;
+    if (!force && Date.now() - this._lastRecoverAt < 15000) return;
     this._recovering = true;
     this._lastRecoverAt = Date.now();
     this._consecutiveTimeouts = 0;
@@ -449,6 +449,28 @@ async function crx3Preview(path) {
   }
 }
 window.crx3Preview = crx3Preview;
+
+/* ─────────────────────────── Manual reconnect ────────────────────────────
+ * The automatic recovery (watchdog + consecutive-timeout escalation) can
+ * take a while to kick in and retries on a 15s cooldown — fine as a safety
+ * net, but the user shouldn't have to just wait when they can see it's
+ * stuck. This button does the same full close+reopen immediately, skipping
+ * the cooldown since it's a deliberate action. */
+async function crx3Reconnect() {
+  const btn = document.getElementById("usb-reconnect-btn");
+  const img = btn ? btn.querySelector("img") : null;
+  if (!con.connected) { alert("Não conectado."); return; }
+  if (con.transport !== "usb") { alert("Reconexão manual só é necessária no WebUSB (Android). No PC (Web Serial) isso não deveria travar."); return; }
+  if (btn) btn.disabled = true;
+  if (img) img.style.animation = "spin 0.8s linear infinite";
+  try {
+    await con._maybeRecover("reconexão manual", true);
+  } finally {
+    if (btn) btn.disabled = false;
+    if (img) img.style.animation = "";
+  }
+}
+window.crx3Reconnect = crx3Reconnect;
 
 /* ─────────────────────────── XMLHttpRequest shim ────────────────────────── */
 const OrigXHR = window.XMLHttpRequest;
