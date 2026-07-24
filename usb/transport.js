@@ -22,30 +22,55 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function b64enc(u8) { let s = ""; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
 function b64dec(b64) { const s = atob(b64); const u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; }
 
-/* ─────────────────────────── CP210x WebUSB driver (Android) ─────────────── */
-const CP210X = { IFC_ENABLE: 0x00, SET_LINE_CTL: 0x03, SET_MHS: 0x07, SET_BAUDRATE: 0x1E };
-
+/* ─────────────────────────── CP210x WebUSB driver (Android) ───────────────
+ * Ported from Jason2866/esp32tool's js/webusb-serial.js (proven working on
+ * Android with real CP2102 hardware). Two bugs in the original hand-rolled
+ * version this replaced: (1) all vendor control transfers used
+ * recipient:"interface" — CP210x expects recipient:"device" for everything
+ * except the baudrate request; (2) DTR/RTS were deasserted on open, but the
+ * chip's own init sequence expects them asserted (1/1) with the mask bits set. */
 class Cp210xPort {
   constructor(device) { this.device = device; this.epIn = 0; this.epOut = 0; this.ifNum = 0; }
-  async _ctrl(request, value, data) {
-    const setup = { requestType: "vendor", recipient: "interface", request, value, index: this.ifNum };
-    return this.device.controlTransferOut(setup, data || new Uint8Array(0));
-  }
+
   async open(baud) {
+    if (this.device.opened) { try { await this.device.close(); } catch (e) {} }
+    try { if (this.device.reset) await this.device.reset(); } catch (e) {}
+
     await this.device.open();
-    if (this.device.configuration === null) await this.device.selectConfiguration(1);
+    if (!this.device.configuration || this.device.configuration.configurationValue !== 1) {
+      await this.device.selectConfiguration(1);
+    }
     const cfg = this.device.configuration;
-    const iface = cfg.interfaces.find(i => i.alternate.endpoints.some(e => e.type === "bulk")) || cfg.interfaces[0];
-    this.ifNum = iface.interfaceNumber;
-    await this.device.claimInterface(this.ifNum);
-    const eps = iface.alternate.endpoints;
-    this.epIn = eps.find(e => e.direction === "in" && e.type === "bulk").endpointNumber;
-    this.epOut = eps.find(e => e.direction === "out" && e.type === "bulk").endpointNumber;
-    await this._ctrl(CP210X.IFC_ENABLE, 0x0001);
-    await this._ctrl(CP210X.SET_BAUDRATE, 0x0000, new Uint8Array([baud & 0xff, (baud >> 8) & 0xff, (baud >> 16) & 0xff, (baud >> 24) & 0xff]));
-    await this._ctrl(CP210X.SET_LINE_CTL, 0x0800);   /* 8N1 */
-    await this._ctrl(CP210X.SET_MHS, 0x0300);        /* DTR=0 RTS=0 */
+
+    /* Pick the interface that actually has bulk in+out endpoints (prefer
+     * vendor-specific class 0xFF, which is what CP210x reports). */
+    let chosen = null;
+    for (const iface of cfg.interfaces) {
+      for (let alt = 0; alt < iface.alternates.length; alt++) {
+        const a = iface.alternates[alt];
+        const hasIn  = a.endpoints.some(e => e.type === "bulk" && e.direction === "in");
+        const hasOut = a.endpoints.some(e => e.type === "bulk" && e.direction === "out");
+        if (hasIn && hasOut) { chosen = { iface, alt, a }; break; }
+      }
+      if (chosen) break;
+    }
+    if (!chosen) throw new Error("Nenhuma interface USB com endpoints bulk encontrada");
+
+    await this.device.claimInterface(chosen.iface.interfaceNumber);
+    try { await this.device.selectAlternateInterface(chosen.iface.interfaceNumber, chosen.alt); } catch (e) {}
+    this.ifNum = chosen.iface.interfaceNumber;
+    this.epIn  = chosen.a.endpoints.find(e => e.type === "bulk" && e.direction === "in").endpointNumber;
+    this.epOut = chosen.a.endpoints.find(e => e.type === "bulk" && e.direction === "out").endpointNumber;
+
+    /* CP210x init sequence — exact order and recipients matter. */
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x00, value: 0x01, index: 0x00 }); // IFC_ENABLE
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x03, value: 0x0800, index: 0x00 }); // SET_LINE_CTL 8N1
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x07, value: 0x03 | 0x0100 | 0x0200, index: 0x00 }); // SET_MHS DTR=1 RTS=1 + masks
+    const baudBuf = new ArrayBuffer(4);
+    new DataView(baudBuf).setUint32(0, baud, true);
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "interface", request: 0x1E, value: 0, index: 0 }, baudBuf); // IFC_SET_BAUDRATE
   }
+
   async write(bytes) { await this.device.transferOut(this.epOut, bytes); }
   async read() {
     const r = await this.device.transferIn(this.epIn, 64);
@@ -84,13 +109,26 @@ class Console {
   constructor() { this.port = null; this.rx = ""; this.connected = false; this.transport = ""; this._id = 0; this._chain = Promise.resolve(); }
 
   async connect(onStatus) {
-    if ("serial" in navigator) {
+    /* Android's Web Serial implementation (when present at all) does not
+     * reliably talk to CP210x vendor-specific USB-serial chips — confirmed
+     * against Jason2866/esp32tool, a tool proven to work on this exact board
+     * on Android, which explicitly prefers WebUSB there and skips
+     * navigator.serial entirely. Desktop Chrome/Edge's Web Serial handles
+     * CP210x fine, so keep that path for desktop. */
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const hasSerial = "serial" in navigator;
+    const hasUsb = "usb" in navigator;
+
+    if (isAndroid && hasUsb) {
+      const d = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x10C4 }] });
+      this.port = new Cp210xPort(d); this.transport = "usb";
+    } else if (hasSerial) {
       /* No vendorId filter: some Android Web Serial stacks report the CP210x
        * with different descriptor details than desktop, so a strict filter
        * can hide it from the picker entirely. Let the user pick manually. */
       const p = await navigator.serial.requestPort();
       this.port = new WebSerialPort(p); this.transport = "serial";
-    } else if ("usb" in navigator) {
+    } else if (hasUsb) {
       const d = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x10C4 }] });
       this.port = new Cp210xPort(d); this.transport = "usb";
     } else {
