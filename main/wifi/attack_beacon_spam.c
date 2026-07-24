@@ -26,6 +26,16 @@ typedef struct {
 static spam_ap_t spam_pool[MAX_SPAM_APS];
 static uint16_t active_spam_count = 20;
 
+/* Frames actually injected per timer tick. Calibrated against the deauth
+ * path's own proven ceiling (up to 50 small ~26-byte frames per 100ms tick,
+ * see DEAUTH_INTENSITY_MAX in attack_method.c) — beacon frames here run up
+ * to 128 bytes, several times larger, so a much lower per-tick count keeps
+ * each burst well inside one tick's real airtime instead of spilling into
+ * the next and backing up the driver's TX queue. */
+#define BEACON_BATCH_SIZE 25
+/* Rotating cursor into spam_pool — see timer_send_beacon(). */
+static uint16_t spam_offset = 0;
+
 
 static const char *base_names[] = { "TP-Link", "Linksys", "Netgear", "ASUS", "D-Link", "Home", "Office", "Starlink", "EastWest" };
 static const char *suffixes[] = { "_WiFi", "-Guest", "-5G", "_Secure", "" };
@@ -80,18 +90,33 @@ static void generate_ssid_by_mode(uint8_t *ssid, uint8_t *length, beacon_spam_mo
     *length = len;
 }
 
+/* Sends one BATCH of the pool per tick instead of the whole pool every
+ * time. With a large count (e.g. 200), blasting all of them back-to-back in
+ * a single 100ms window used to take far longer than 100ms of real airtime
+ * to actually transmit, so esp_timer's next tick would fire before the
+ * previous burst finished — the TX queue backs up and only the
+ * early-indexed APs in the loop ever reliably go out, which is exactly why
+ * a phone scan only ever showed a handful of the configured networks no
+ * matter how high the count was set. Round-robining a fixed, calibrated
+ * batch guarantees every configured AP gets its own dedicated tick(s)
+ * within a bounded, predictable cycle time instead of fighting over one
+ * oversized burst. */
 static void timer_send_beacon(void *arg) {
     uint8_t chan = 1;
     wifi_second_chan_t sec;
     esp_wifi_get_channel(&chan, &sec);
 
-    for (int i = 0; i < active_spam_count; i++) {
-        wsl_bypasser_send_beacon_frame(spam_pool[i].bssid, spam_pool[i].ssid, spam_pool[i].ssid_len, chan);
+    uint16_t n = active_spam_count < BEACON_BATCH_SIZE ? active_spam_count : BEACON_BATCH_SIZE;
+    for (uint16_t i = 0; i < n; i++) {
+        uint16_t idx = spam_offset % active_spam_count;
+        wsl_bypasser_send_beacon_frame(spam_pool[idx].bssid, spam_pool[idx].ssid, spam_pool[idx].ssid_len, chan);
+        spam_offset++;
     }
 }
 
 void attack_beacon_spam_start(uint8_t count, beacon_spam_mode_t mode) {
     active_spam_count = (count > 0 && count <= MAX_SPAM_APS) ? count : 20;
+    spam_offset = 0;
 
     for (int i = 0; i < active_spam_count; i++) {
         generate_ssid_by_mode(spam_pool[i].ssid, &spam_pool[i].ssid_len, mode, i);
@@ -101,8 +126,14 @@ void attack_beacon_spam_start(uint8_t count, beacon_spam_mode_t mode) {
 
     const esp_timer_create_args_t args = { .callback = &timer_send_beacon };
     esp_timer_create(&args, &beacon_timer_handle);
-    esp_timer_start_periodic(beacon_timer_handle, 100000);
-    ESP_LOGI(TAG, "Beacon spam started. Mode: %d", mode);
+    /* 50ms tick (was 100ms) — with the round-robin batching above, a shorter
+     * period means a full cycle through a large pool completes faster (e.g.
+     * 200 APs / 25 per tick = 8 ticks -> 400ms instead of 800ms to give
+     * every configured AP at least one beacon), so scans converge on the
+     * complete set of fake networks sooner. */
+    esp_timer_start_periodic(beacon_timer_handle, 50000);
+    uint32_t cycle_ms = ((active_spam_count + BEACON_BATCH_SIZE - 1) / BEACON_BATCH_SIZE) * 50;
+    ESP_LOGI(TAG, "Beacon spam started. Mode: %d, %u APs, full cycle ~%lums", mode, active_spam_count, (unsigned long) cycle_ms);
 }
 
 void attack_beacon_spam_stop() {
