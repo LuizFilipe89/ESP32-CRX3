@@ -37,8 +37,8 @@ static const char *TAG = "main:attack_method";
 static uint8_t deauth_burst = 1;
 
 void attack_method_set_intensity(uint8_t intensity) {
-    if (intensity < 1)  intensity = 1;
-    if (intensity > 10) intensity = 10;
+    if (intensity < 1) intensity = 1;
+    if (intensity > DEAUTH_INTENSITY_MAX) intensity = DEAUTH_INTENSITY_MAX;
     deauth_burst = intensity;
     ESP_LOGI(TAG, "Deauth intensity set to %u frame(s)/burst", deauth_burst);
 }
@@ -301,8 +301,8 @@ void attack_method_targeted_start(const wifi_ap_record_t **records, uint8_t coun
     tgt_chan_idx = 0;
     tgt_client_count = 0;
 
-    if (intensity < 1)  intensity = 1;
-    if (intensity > 10) intensity = 10;
+    if (intensity < 1) intensity = 1;
+    if (intensity > DEAUTH_INTENSITY_MAX) intensity = DEAUTH_INTENSITY_MAX;
     tgt_intensity = intensity;
 
     for (int i = 0; i < count && i < MAX_ATTACK_TARGETS; i++) {

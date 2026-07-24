@@ -234,7 +234,7 @@
           <div class="form-row" id="intensity-row" style="display:none;">
             <label class="form-label" for="attack_intensity" data-i18n="cfg.intensity">Test Intensity</label>
             <div class="intensity-row">
-              <input type="range" id="attack_intensity" min="1" max="10" value="3"
+              <input type="range" id="attack_intensity" min="1" max="50" value="3"
                      oninput="document.getElementById('intensity-val').textContent = this.value;">
               <span id="intensity-val" class="intensity-val">3</span>
             </div>
@@ -243,7 +243,7 @@
 
           <div id="beacon_config" style="display:none;" class="form-row">
             <label class="form-label" for="beacon_count" data-i18n="cfg.fakeNetworks">Number of Fake Networks</label>
-            <input type="number" id="beacon_count" min="1" max="100" value="20"
+            <input type="number" id="beacon_count" min="1" max="200" value="20"
                    style="width:120px; min-width:120px;">
           </div>
 

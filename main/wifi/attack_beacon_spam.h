@@ -21,7 +21,7 @@ typedef enum {
 
 /**
  * @brief Starts the beacon spam attack with a specific mode.
- * @param count Number of fake APs to generate (Max 100)
+ * @param count Number of fake APs to generate (Max 200)
  * @param mode The style of SSIDs to broadcast
  */
 void attack_beacon_spam_start(uint8_t count, beacon_spam_mode_t mode);

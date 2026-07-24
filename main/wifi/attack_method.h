@@ -12,6 +12,12 @@
 #include "esp_wifi_types.h"
 #include "attack.h"
 
+/** Frames-per-burst ceiling for both attack_method_set_intensity() and
+ *  attack_method_targeted_start(). Bursts fire every 100ms, so 50 is 500
+ *  frames/sec/target — the practical ceiling before esp_wifi_80211_tx()
+ *  back-to-back calls start eating into the next tick's own 100ms budget. */
+#define DEAUTH_INTENSITY_MAX 50
+
 /**
  * @brief Starts periodic deauthentication frame broadcast
  *
@@ -31,7 +37,7 @@ void attack_method_broadcast_stop();
  * Applies to both the broadcast and the targeted-client deauth methods. Higher
  * values send more frames per 100 ms tick, making the test more aggressive.
  *
- * @param intensity frames per burst, clamped to <1,10>. 0 is treated as 1.
+ * @param intensity frames per burst, clamped to <1,DEAUTH_INTENSITY_MAX>. 0 is treated as 1.
  */
 void attack_method_set_intensity(uint8_t intensity);
 
@@ -45,7 +51,7 @@ void attack_method_set_intensity(uint8_t intensity);
  *
  * @param records     array of target AP records (BSSID + channel)
  * @param count       number of targets in @p records
- * @param intensity   frames per burst per client, clamped to <1,10>
+ * @param intensity   frames per burst per client, clamped to <1,DEAUTH_INTENSITY_MAX>
  */
 void attack_method_targeted_start(const wifi_ap_record_t **records, uint8_t count, uint8_t intensity);
 

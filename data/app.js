@@ -924,12 +924,12 @@ function runAttack() {
 
     var ids = selectedApElements.slice(0, MAX_TARGETS);
 
-    /* Test intensity (1..10) — deauth frames per burst. Only meaningful for DoS,
+    /* Test intensity (1..50) — deauth frames per burst. Only meaningful for DoS,
      * but always sent so the 22-byte payload size stays fixed. */
     var intensityEl = document.getElementById("attack_intensity");
     var intensity   = intensityEl ? (parseInt(intensityEl.value) || 3) : 3;
     if (intensity < 1)  intensity = 1;
-    if (intensity > 10) intensity = 10;
+    if (intensity > 50) intensity = 50;
 
     /* Binary payload layout (22 bytes — must match attack_request_t):
      *   Byte 0    — attack type

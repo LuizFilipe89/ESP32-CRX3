@@ -16,7 +16,7 @@
 static const char *TAG = "beacon_spam";
 static esp_timer_handle_t beacon_timer_handle;
 
-#define MAX_SPAM_APS 100
+#define MAX_SPAM_APS 200
 typedef struct {
     uint8_t ssid[33];
     uint8_t ssid_len;
