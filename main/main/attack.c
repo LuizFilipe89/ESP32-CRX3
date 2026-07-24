@@ -79,7 +79,6 @@ static void attack_cleanup_by_type(uint8_t type) {
             break;
         case ATTACK_TYPE_BEACON_SPAM:
             attack_beacon_spam_stop();
-            wifictl_mgmt_ap_start();
             break;
         case ATTACK_TYPE_PROBE:
             attack_probe_stop();
@@ -147,11 +146,6 @@ static void attack_request_handler(void *args, esp_event_base_t event_base, int3
         case ATTACK_TYPE_BEACON_SPAM: {
             uint8_t spam_count = attack_config.method;                              // byte 1 = count
             beacon_spam_mode_t mode = (beacon_spam_mode_t)attack_request->ap_count; // byte 4 = mode (repurposed)
-            /* Beacon spam now hops all 13 channels for real spectrum coverage,
-             * which drags the single radio's AP along with it — same
-             * management-AP-goes-down trade-off Deauth/Evil Twin/Probe already
-             * make, so it needs the same teardown here. */
-            wifictl_mgmt_ap_stop();
             attack_beacon_spam_start(spam_count, mode);
             break;
         }
