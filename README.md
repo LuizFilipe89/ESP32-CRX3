@@ -1,5 +1,7 @@
 <div align="center">
 
+**🇺🇸 English** | [🇧🇷 Português (Brasil)](README.pt-BR.md)
+
 <img src="resources/hydra_logo.png" alt="CRX3 Logo" width="320"/>
 
 # CRX3
@@ -17,7 +19,7 @@
 
 ---
 
-**CRX3** turns a $5 ESP32 DevKit V1 into a full Wi-Fi penetration-testing toolkit, controlled entirely from a phone or laptop browser at `http://192.168.4.1` — no app to install. It's a fork of [Sameer Al Sahab's Hydra-ESP / ProjectHydraOS](https://github.com/SameerAlSahab/ESP32-Deauther), which in turn is built on [risinek's](https://github.com/risinek/esp32-wifi-penetration-tool) original ESP32 Wi-Fi penetration tool.
+**CRX3** turns a $5 ESP32 DevKit V1 into a full Wi-Fi penetration-testing toolkit, controlled entirely from a phone or laptop browser at `http://192.168.4.1` — no app to install. The web panel ships in **two languages: English (default) and Portuguese (Brazil)**, switchable anytime from Settings. It's a fork of [Sameer Al Sahab's Hydra-ESP / ProjectHydraOS](https://github.com/SameerAlSahab/ESP32-Deauther), which in turn is built on [risinek's](https://github.com/risinek/esp32-wifi-penetration-tool) original ESP32 Wi-Fi penetration tool.
 
 This fork's focus: a fully **customizable Evil Twin** (your own SSID, your own captive-portal page), higher deauth/beacon-spam ceilings, and a round of real bug fixes to the attack-stop/timeout logic — all wrapped in a codebase kept as simple as possible to read, build, and extend.
 
@@ -190,7 +192,7 @@ Joins a chosen Wi-Fi network as a station, scans the local subnet for hosts with
 
 ## Web Interface Tour
 
-Everything lives at `http://192.168.4.1`, available in **English and Portuguese (BR)** (switch anytime in Settings).
+Everything lives at `http://192.168.4.1`. The panel has **two languages: English (default) and Portuguese (Brazil)** — switch anytime from the Settings tab, no reboot needed.
 
 | Tab | What's there |
 |---|---|
