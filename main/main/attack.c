@@ -98,16 +98,6 @@ static void attack_timeout(void* arg){
     attack_cleanup_by_type(attack_status.type);
 }
 
-void attack_stop_current(void){
-    if (attack_status.state != RUNNING) {
-        return;
-    }
-    ESP_LOGI(TAG, "Stopping current attack on request");
-    attack_update_status(FINISHED);
-    attack_cleanup_by_type(attack_status.type);
-}
-
-
 static void attack_request_handler(void *args, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     attack_request_t *attack_request = (attack_request_t *) event_data;
 

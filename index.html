@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hydra32 | ESP32 Wi-Fi Security Tool</title>
+    <title>CRX3 | ESP32 Wi-Fi Security Tool (Hydra-ESP fork)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -595,7 +595,7 @@
             <nav class="navbar">
                 <div class="logo">
                     <i class="fas fa-microchip"></i>
-                    <span>Hydra32</span>
+                    <span>CRX3</span>
                 </div>
                 <div class="nav-links">
                     <a href="#about">About</a>
@@ -613,8 +613,8 @@
         <div class="container">
             <div class="hero-content">
                 <h1>ESP32 Wi-Fi Security Testing Tool</h1>
-                <p>Hydra32 is an open-source project that transforms the ESP32 into a powerful Wi-Fi security testing device for educational purposes and authorized penetration testing.</p>
-                
+                <p><strong>CRX3</strong> is a 100% open-source (GPL-3.0) fork of Hydra-ESP that transforms the ESP32 into a powerful Wi-Fi security testing device for educational purposes and authorized penetration testing. Built on risinek's original tool, refined by Sameer Al Sahab's Hydra-ESP/ProjectHydraOS, and now extended in this fork.</p>
+
                 <div class="hero-buttons">
                     <a href="#install" class="btn btn-primary">
                         <i class="fas fa-download"></i> Get Started
@@ -632,14 +632,14 @@
     <section id="about">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title">About Hydra32</h2>
+                <h2 class="section-title">About CRX3</h2>
                 <p class="section-subtitle">Understanding the purpose and capabilities of this security tool</p>
             </div>
-            
+
             <div class="card">
-                <p>Hydra32 is an open-source project developed by SameerAlSahab that transforms the ESP32 into a versatile Wi-Fi penetration testing device. Built for security professionals and ethical hackers, Hydra32 provides a suite of tools to test network vulnerabilities and enhance security awareness.</p>
+                <p><strong>CRX3</strong> is a fork of Hydra-ESP (originally by SameerAlSahab, itself built on risinek's ESP32 Wi-Fi penetration tool) that transforms the ESP32 into a versatile Wi-Fi penetration testing device. This fork's changes — adjustable deauth intensity, a larger beacon spam capacity, and several bug fixes to the Evil Twin / stop-attack flow — were made by <a href="https://github.com/LuizFilipe89" target="_blank">LuizFilipe89</a> with the help of Claude Sonnet (Anthropic), by someone with no prior programming experience. The whole codebase is 100% open source under GPL-3.0.</p>
                 <br>
-                <p>The project emphasizes responsible use and education, with built-in safeguards to prevent misuse. Hydra32 is designed for:</p>
+                <p>The project emphasizes responsible use and education, with built-in safeguards to prevent misuse. CRX3 is designed for:</p>
                 <ul style="padding-left: 20px; margin-top: 15px;">
                     <li>Security researchers testing their own networks</li>
                     <li>Educational demonstrations of Wi-Fi vulnerabilities</li>
@@ -673,47 +673,63 @@
                         <i class="fas fa-wifi"></i>
                     </div>
                     <h3>Wi-Fi Deauthentication</h3>
-                    <p>Send deauthentication frames to disconnect devices from access points for security testing.</p>
+                    <p>Normal, BSSID Clone, Multi-Clone, or Targeted-Client methods, with adjustable intensity up to 50 frames/burst and up to 16 simultaneous targets.</p>
                 </div>
-                
+
+                <div class="card">
+                    <div class="card-icon">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <h3>WPA Handshake Capture</h3>
+                    <p>Captures the WPA2 4-way handshake as .pcap / .hccapx, ready for offline auditing with Hashcat or aircrack-ng.</p>
+                </div>
+
                 <div class="card">
                     <div class="card-icon">
                         <i class="fas fa-broadcast-tower"></i>
                     </div>
                     <h3>Beacon Spam</h3>
-                    <p>Flood the area with fake access points to test network visibility and detection systems.</p>
+                    <p>Flood the area with up to 200 fake access points — common names, random strings, Rick Roll, or security-themed.</p>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-icon">
-                        <i class="fas fa-laptop-code"></i>
+                        <i class="fas fa-user-secret"></i>
                     </div>
-                    <h3>Web Interface</h3>
-                    <p>Control Hydra32 through an intuitive web-based interface accessible from any device.</p>
+                    <h3>Evil Twin</h3>
+                    <p>Open clone + deauth + captive portal password capture, with a custom-SSID rogue mode and custom portal upload.</p>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-icon">
                         <i class="fas fa-shield-alt"></i>
                     </div>
-                    <h3>Security Protocols</h3>
-                    <p>Test various security protocols and their vulnerabilities in a controlled environment.</p>
+                    <h3>Deauth Attack Detector</h3>
+                    <p>Monitors the air in promiscuous mode and alerts when a deauthentication flood is detected against nearby networks.</p>
                 </div>
-                
+
+                <div class="card">
+                    <div class="card-icon">
+                        <i class="fas fa-laptop-code"></i>
+                    </div>
+                    <h3>Bilingual Web Interface</h3>
+                    <p>Control everything from an intuitive web UI at 192.168.4.1, in English or Portuguese (BR), from any device.</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">
+                        <i class="fas fa-print"></i>
+                    </div>
+                    <h3>Network Printer Attack <span style="font-size:0.8rem;color:var(--warning);">(in development)</span></h3>
+                    <p>Scans a joined network for open printers and sends a raw print job. Present in the UI, still being refined.</p>
+                </div>
+
                 <div class="card">
                     <div class="card-icon">
                         <i class="fas fa-plug"></i>
                     </div>
                     <h3>ESP32 Compatibility</h3>
-                    <p>Designed specifically for ESP32 Devkit V1 and compatible development boards.</p>
-                </div>
-                
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-history"></i>
-                    </div>
-                    <h3>Timed Operations</h3>
-                    <p>Schedule attacks to run for specific durations with automatic shutdown.</p>
+                    <p>Designed specifically for ESP32 Devkit V1 and compatible development boards, with optional SSD1306 OLED display support.</p>
                 </div>
             </div>
             
@@ -738,7 +754,7 @@
             
             <div class="legal-section">
                 <h3><i class="fas fa-exclamation-triangle"></i> Important Legal Disclaimer</h3>
-                <p>Hydra32 is developed strictly for educational purposes and authorized security testing. Unauthorized use against networks or devices you do not own is illegal in most jurisdictions.</p>
+                <p>CRX3 is developed strictly for educational purposes and authorized security testing. Unauthorized use against networks or devices you do not own is illegal in most jurisdictions.</p>
                 <br>
                 <p><strong>⚠️ Always obtain explicit written consent before testing any network that is not your own.</strong></p>
                 <br>
@@ -750,13 +766,7 @@
                     <li><strong>Telecommunications Regulations</strong> - Various countries</li>
                 </ul>
                 <br>
-                <p>Core packet injection logic is intentionally omitted from public repositories to:</p>
-                <ul style="padding-left: 20px;">
-                    <li>Prevent misuse by unskilled individuals</li>
-                    <li>Comply with security research ethics</li>
-                    <li>Avoid distributing potentially harmful code</li>
-                    <li>Encourage genuine learning of network protocols</li>
-                </ul>
+                <p>The entire codebase — including the attack modules — is 100% open source (GPL-3.0) and available in the repository for anyone to read, learn from, and audit. The authors, both of the original project and of this fork, accept no liability for misuse or any damage resulting from it. You are solely responsible for how you use this software.</p>
             </div>
             
             <div class="nav-buttons">
@@ -775,7 +785,7 @@
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">Installation Guide</h2>
-                <p class="section-subtitle">Get Hydra32 up and running on your ESP32 device</p>
+                <p class="section-subtitle">Get CRX3 up and running on your ESP32 device</p>
             </div>
             
             <div class="steps">
@@ -792,12 +802,12 @@
                     <div class="step-content">
                         <h4>Download Firmware</h4>
                         <p>Get the latest firmware binaries from the GitHub releases page:</p>
-                        <a href="https://github.com/SameerAlSahab/Hydra32/releases" class="btn btn-primary" style="margin-top: 10px;">
+                        <a href="https://github.com/LuizFilipe89/ESP32-CRX3/releases" class="btn btn-primary" style="margin-top: 10px;">
                             <i class="fab fa-github"></i> Download Releases
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="step">
                     <div class="step-number">3</div>
                     <div class="step-content">
@@ -806,21 +816,22 @@
                         <div class="code-block">
                             <code>
                                 <span class="code-comment"># Using esptool.py</span><br>
-                                esptool.py -p /dev/ttyS5 -b 115200 write_flash \<br>
-                                &nbsp;&nbsp;--flash_mode dio --flash_freq 40m --flash_size detect \<br>
-                                &nbsp;&nbsp;0x8000 partitions-table.bin \<br>
-                                &nbsp;&nbsp;0x1000 bootloader.bin \<br>
-                                &nbsp;&nbsp;0x10000 hydra32.bin
+                                esptool.py --chip esp32 -p COM3 -b 460800 write_flash \<br>
+                                &nbsp;&nbsp;--flash_mode dio --flash_freq 80m --flash_size detect \<br>
+                                &nbsp;&nbsp;0x1000&nbsp;&nbsp;bootloader.bin \<br>
+                                &nbsp;&nbsp;0x8000&nbsp;&nbsp;partition-table.bin \<br>
+                                &nbsp;&nbsp;0x10000 projecthydra-32.bin \<br>
+                                &nbsp;&nbsp;0x190000 storage.bin
                             </code>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="step">
                     <div class="step-number">4</div>
                     <div class="step-content">
                         <h4>Connect & Access</h4>
-                        <p>After flashing, connect to the Hydra32 access point and navigate to the web interface at 192.168.4.1.</p>
+                        <p>After flashing, connect to the <code>crx3</code> Wi-Fi access point and navigate to the web interface at 192.168.4.1.</p>
                     </div>
                 </div>
             </div>
@@ -841,40 +852,40 @@
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">Support the Project</h2>
-                <p class="section-subtitle">Help Hydra32 grow and improve - no money required!</p>
+                <p class="section-subtitle">Help CRX3 grow and improve - no money required!</p>
             </div>
-            
+
             <div class="support-options">
                 <div class="support-card">
                     <i class="fab fa-github"></i>
                     <h3>Star on GitHub</h3>
                     <p>Show your support by starring the repository to increase visibility.</p>
-                    <a href="#" class="btn btn-outline" style="margin-top: 15px; display: inline-block;">
+                    <a href="https://github.com/LuizFilipe89/ESP32-CRX3" target="_blank" class="btn btn-outline" style="margin-top: 15px; display: inline-block;">
                         <i class="fas fa-star"></i> Star Project
                     </a>
                 </div>
-                
+
                 <div class="support-card">
                     <i class="fas fa-bug"></i>
                     <h3>Report Issues</h3>
-                    <p>Help improve Hydra32 by reporting bugs and issues you encounter.</p>
-                    <a href="#" class="btn btn-outline" style="margin-top: 15px; display: inline-block;">
+                    <p>Help improve CRX3 by reporting bugs and issues you encounter.</p>
+                    <a href="https://github.com/LuizFilipe89/ESP32-CRX3/issues" target="_blank" class="btn btn-outline" style="margin-top: 15px; display: inline-block;">
                         <i class="fas fa-bug"></i> Report Issue
                     </a>
                 </div>
-                
+
                 <div class="support-card">
                     <i class="fas fa-lightbulb"></i>
                     <h3>Suggest Features</h3>
                     <p>Contribute ideas for new features and improvements.</p>
-                    <a href="#" class="btn btn-outline" style="margin-top: 15px; display: inline-block;">
+                    <a href="https://github.com/LuizFilipe89/ESP32-CRX3/issues/new" target="_blank" class="btn btn-outline" style="margin-top: 15px; display: inline-block;">
                         <i class="fas fa-comment"></i> Suggest Feature
                     </a>
                 </div>
             </div>
-            
+
             <p style="text-align: center; margin-top: 40px; max-width: 700px; margin-left: auto; margin-right: auto;">
-                <strong>Note:</strong> I do not accept monetary donations. Your contributions through code, testing, and community support are what keep this project alive and evolving.
+                <strong>Note:</strong> No monetary donations are accepted. Contributions through code, testing, and community support are what keep this project alive and evolving.
             </p>
             
             <div class="nav-buttons">
@@ -898,13 +909,21 @@
             
             <div class="credits-grid">
                 <div class="credit-card">
-                    <h3>SpacehuhnTech</h3>
-                    <p>ESP8266 Deauther project that inspired the initial concept</p>
-                    <a href="https://github.com/SpacehuhnTech/esp8266_deauther" target="_blank">
+                    <h3>LuizFilipe89 (this fork)</h3>
+                    <p>CRX3 improvements — made with Claude Sonnet (Anthropic), by someone with no prior programming experience</p>
+                    <a href="https://github.com/LuizFilipe89" target="_blank">
                         <i class="fab fa-github"></i> View on GitHub
                     </a>
                 </div>
-                
+
+                <div class="credit-card">
+                    <h3>Sameer Al Sahab</h3>
+                    <p>Lead developer of Hydra-ESP / ProjectHydraOS, the project this fork is built on</p>
+                    <a href="https://github.com/SameerAlSahab/ESP32-Deauther" target="_blank">
+                        <i class="fab fa-github"></i> View on GitHub
+                    </a>
+                </div>
+
                 <div class="credit-card">
                     <h3>Risinek</h3>
                     <p>ESP32 Wi-Fi Penetration Tool that provided foundational code</p>
@@ -912,7 +931,15 @@
                         <i class="fab fa-github"></i> View on GitHub
                     </a>
                 </div>
-                
+
+                <div class="credit-card">
+                    <h3>SpacehuhnTech</h3>
+                    <p>ESP8266 Deauther project that inspired the initial concept</p>
+                    <a href="https://github.com/SpacehuhnTech/esp8266_deauther" target="_blank">
+                        <i class="fab fa-github"></i> View on GitHub
+                    </a>
+                </div>
+
                 <div class="credit-card">
                     <h3>Jeija</h3>
                     <p>ESP32Free80211 library that enables raw packet handling</p>
@@ -921,11 +948,11 @@
                     </a>
                 </div>
             </div>
-            
+
             <div class="download-section">
                 <h2 style="font-size: 2.2rem; margin-bottom: 20px;">Ready to Get Started?</h2>
-                <p style="font-size: 1.2rem; max-width: 700px; margin: 0 auto 30px;">Download the latest release of Hydra32 and start testing your network security today</p>
-                <a href="https://github.com/SameerAlSahab/Hydra32/releases" class="btn btn-primary" style="font-size: 1.2rem; padding: 15px 40px;">
+                <p style="font-size: 1.2rem; max-width: 700px; margin: 0 auto 30px;">Download the latest release of CRX3 and start testing your network security today</p>
+                <a href="https://github.com/LuizFilipe89/ESP32-CRX3/releases" class="btn btn-primary" style="font-size: 1.2rem; padding: 15px 40px;">
                     <i class="fas fa-download"></i> Download Now
                 </a>
             </div>
@@ -946,31 +973,30 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-column">
-                    <h3>Hydra32</h3>
-                    <p>Advanced Wi-Fi penetration tool for the ESP32 platform, designed for security research and education.</p>
+                    <h3>CRX3</h3>
+                    <p>Advanced Wi-Fi penetration tool for the ESP32 platform, designed for security research and education. A 100% open-source fork of Hydra-ESP.</p>
                 </div>
-                
+
                 <div class="footer-column">
                     <h3>Resources</h3>
                     <ul class="footer-links">
-                        <li><a href="#"><i class="fas fa-book"></i> Documentation</a></li>
-                        <li><a href="https://github.com/SameerAlSahab/Hydra32"><i class="fab fa-github"></i> GitHub Repository</a></li>
-                        <li><a href="#"><i class="fas fa-exclamation-triangle"></i> Responsible Use Guide</a></li>
+                        <li><a href="https://github.com/LuizFilipe89/ESP32-CRX3#readme" target="_blank"><i class="fas fa-book"></i> Documentation</a></li>
+                        <li><a href="https://github.com/LuizFilipe89/ESP32-CRX3" target="_blank"><i class="fab fa-github"></i> GitHub Repository</a></li>
+                        <li><a href="https://github.com/LuizFilipe89/ESP32-CRX3/releases" target="_blank"><i class="fas fa-download"></i> Releases</a></li>
                     </ul>
                 </div>
-                
+
                 <div class="footer-column">
                     <h3>Legal</h3>
                     <ul class="footer-links">
-                        <li><a href="#"><i class="fas fa-balance-scale"></i> Terms of Use</a></li>
-                        <li><a href="#"><i class="fas fa-user-shield"></i> Privacy Policy</a></li>
-                        <li><a href="#"><i class="fas fa-gavel"></i> Legal Disclaimer</a></li>
+                        <li><a href="LICENSE"><i class="fas fa-balance-scale"></i> GPL-3.0 License</a></li>
+                        <li><a href="#laws"><i class="fas fa-gavel"></i> Legal Disclaimer</a></li>
                     </ul>
                 </div>
             </div>
-            
+
             <div class="copyright">
-                <p>© 2025 SameerAlSahab. All rights reserved. Hydra32 is for educational and authorized testing purposes only.</p>
+                <p>CRX3 — a GPL-3.0, 100% open-source fork of Hydra-ESP. For educational and authorized testing purposes only. See <a href="#laws" style="color:inherit;text-decoration:underline;">Legal</a> above.</p>
             </div>
         </div>
     </footer>

@@ -2,13 +2,14 @@ CONFIG_ESP32_WIFI_NVS_ENABLED=n
 CONFIG_MGMT_AP_SSID="crx3"
 CONFIG_BT_ENABLED=n
 CONFIG_LWIP_MAX_SOCKETS=16
-# Serial-first: don't load the web interface at boot (set =y to bring it back)
-CONFIG_CRX3_START_WEB_INTERFACE=n
-# 460800 instead of 115200 — Jason2866/esp32tool's own Android WebUSB notes
-# recommend this for USB-serial chips (CP2102 etc.); must match the client's
-# baud in usb/transport.js. ESP_CONSOLE_UART_BAUDRATE only takes effect with
-# ESP_CONSOLE_UART_CUSTOM=y (its Kconfig prompt is gated on that choice) —
-# without it the value is silently ignored and reset to the 115200 default.
-CONFIG_ESP_CONSOLE_UART_CUSTOM=y
-# CONFIG_ESP_CONSOLE_UART_DEFAULT is not set
-CONFIG_ESP_CONSOLE_UART_BAUDRATE=460800
+# This project needs its own partitions.csv (defines the "storage" SPIFFS
+# partition the web UI/SPIFFS data lives on) instead of ESP-IDF's built-in
+# single-app table. This was previously only baked into the tracked
+# sdkconfig itself (never in this defaults file), so deleting sdkconfig for
+# a clean regen silently lost it and broke the SPIFFS image build.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+# Also only ever baked into the tracked sdkconfig, never in this file:
+# max CPU clock and flash read speed, presumably tuned for attack throughput.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y

@@ -1,23 +1,62 @@
-
-
-# Hydra-ESP
-
 <div align="center">
-<img src="resources/hydra_logo.png" alt="Hydra-ESP Logo" width="350"/>
+
+<img src="resources/hydra_logo.png" alt="CRX3 Logo" width="320"/>
+
+# CRX3
+
+**A Wi-Fi security research firmware for the ESP32 — 100% open source, no strings attached.**
+
+[![Stars](https://img.shields.io/github/stars/LuizFilipe89/ESP32-CRX3?style=for-the-badge&color=yellow)](https://github.com/LuizFilipe89/ESP32-CRX3/stargazers)
+[![Forks](https://img.shields.io/github/forks/LuizFilipe89/ESP32-CRX3?style=for-the-badge&color=orange)](https://github.com/LuizFilipe89/ESP32-CRX3/network/members)
+[![Issues](https://img.shields.io/github/issues/LuizFilipe89/ESP32-CRX3?style=for-the-badge&color=red)](https://github.com/LuizFilipe89/ESP32-CRX3/issues)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/LuizFilipe89/ESP32-CRX3?style=for-the-badge&color=brightgreen)](https://github.com/LuizFilipe89/ESP32-CRX3/commits)
+[![Open Source](https://img.shields.io/badge/100%25-open%20source-success?style=for-the-badge)](LICENSE)
+
 </div>
 
-[![Stars](https://img.shields.io/github/stars/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=yellow)](https://github.com/SameerAlSahab/ESP32-Deauther/stargazers)
-[![Forks](https://img.shields.io/github/forks/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=orange)](https://github.com/SameerAlSahab/ESP32-Deauther/network/members)
-[![Issues](https://img.shields.io/github/issues/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=red)](https://github.com/SameerAlSahab/ESP32-Deauther/issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=purple)](https://github.com/SameerAlSahab/ESP32-Deauther/pulls)
-[![License](https://img.shields.io/github/license/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=blue)](LICENSE)
-[![Last Commit](https://img.shields.io/github/last-commit/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=brightgreen)](https://github.com/SameerAlSahab/ESP32-Deauther/commits)
-[![Repo Size](https://img.shields.io/github/repo-size/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=informational)](https://github.com/SameerAlSahab/ESP32-Deauther)
-[![Contributors](https://img.shields.io/github/contributors/SameerAlSahab/ESP32-Deauther?style=for-the-badge&color=pink)](https://github.com/SameerAlSahab/ESP32-Deauther/graphs/contributors)
+---
 
-A wireless security research firmware for the ESP32 microcontroller. Built on top of [risinek's](https://github.com/risinek/esp32-wifi-penetration-tool) original ESP32 Wi-Fi penetration tool foundation, ProjectHydraOS extends the original with a redesigned web interface, multi-target deauthentication, BLE attack capabilities, a deauth attack detector, optional OLED display support, and several additional attack modules.
+**CRX3** turns a $5 ESP32 DevKit V1 into a full Wi-Fi penetration-testing toolkit, controlled entirely from a phone or laptop browser at `http://192.168.4.1` — no app to install. It's a fork of [Sameer Al Sahab's Hydra-ESP / ProjectHydraOS](https://github.com/SameerAlSahab/ESP32-Deauther), which in turn is built on [risinek's](https://github.com/risinek/esp32-wifi-penetration-tool) original ESP32 Wi-Fi penetration tool.
 
-**🖥️ USB Control Panel:** [luizfilipe89.github.io/ESP32-CRX3/usb/](https://luizfilipe89.github.io/ESP32-CRX3/usb/) — control the device over USB (Web Serial/WebUSB), no Wi-Fi needed.
+This fork's focus: a fully **customizable Evil Twin** (your own SSID, your own captive-portal page), higher deauth/beacon-spam ceilings, and a round of real bug fixes to the attack-stop/timeout logic — all wrapped in a codebase kept as simple as possible to read, build, and extend.
+
+> **Made with AI, in the open.** Every change in this fork was written by [LuizFilipe89](https://github.com/LuizFilipe89) working with Claude Sonnet (Anthropic) — with **no prior programming experience**. If you're learning too, the commit history is the whole story. See [Legal & Credits](#legal--credits) below.
+
+---
+
+## Table of Contents
+
+- [Quick Feature Overview](#quick-feature-overview)
+- [Hardware](#hardware)
+- [Installation](#installation)
+- [How It Works](#how-it-works)
+- [Attacks](#attacks)
+  - [Deauthentication](#-deauthentication)
+  - [WPA Handshake Capture](#-wpa-handshake-capture)
+  - [Beacon Spam](#-beacon-spam)
+  - [Ghost Mode](#-ghost-mode-probe-request-spam)
+  - [Evil Twin — fully customizable](#-evil-twin--fully-customizable)
+  - [Deauth Attack Detector](#-deauth-attack-detector)
+  - [Network Printer Attack (in development)](#-network-printer-attack-in-development)
+- [Web Interface Tour](#web-interface-tour)
+- [Default Credentials](#default-credentials)
+- [Dependencies](#dependencies)
+- [Legal & Credits](#legal--credits)
+
+---
+
+## Quick Feature Overview
+
+| Feature | What it does | Limits |
+|---|---|---|
+| 🎯 Deauthentication | 4 methods, incl. one that beats 802.11w (PMF) | Up to 16 targets, intensity up to **50** frames/burst |
+| 🤝 Handshake Capture | Captures WPA2 4-way handshake → `.pcap` / `.hccapx` | For Hashcat / aircrack-ng offline cracking |
+| 📡 Beacon Spam | Floods the air with fake networks | Up to **200** fake SSIDs, 4 naming modes |
+| 👻 Ghost Mode | Mirrors nearby devices' saved-network probes | No target needed |
+| 🎭 Evil Twin | Clone a real AP **or** run your own custom SSID, with your own portal page | Fully customizable, credential log persists across reboots |
+| 🚨 Deauth Detector | Passive monitor that flags deauth floods nearby | Real-time alert log |
+| 🖨️ Network Printer Attack | Finds & prints to open network printers | 🚧 in development |
 
 ---
 
@@ -25,148 +64,178 @@ A wireless security research firmware for the ESP32 microcontroller. Built on to
 
 **Required**
 
-- Note: If you have a ESP32 S3 based version, look at the branch: `s3-N16R8` https://github.com/SameerAlSahab/ESP32-Deauther/tree/s3-N16R8
-
-- ESP32 DevKit V1 or any board based on the ESP32 (Xtensa LX6 dual-core) SoC. The firmware is developed and tested on the standard 38-pin DevKit V1. Other ESP32 variants with the same chip such as the ESP32-WROOM-32 and ESP32-WROVER modules are expected to work. ESP32-S2, S3, C3, and other variants are not supported as they use different hardware radio architectures.
+- ESP32 DevKit V1, or any board using the same ESP32 (Xtensa LX6, dual-core) chip. Developed and tested on the standard 38-pin DevKit V1; ESP32-WROOM-32 / WROVER modules are expected to work too. **ESP32-S2, S3, C3 and other variants are not supported** — different radio architecture.
+- If you have an ESP32-S3 board, the upstream project has a dedicated branch: [`s3-N16R8`](https://github.com/SameerAlSahab/ESP32-Deauther/tree/s3-N16R8).
 
 **Optional**
 
-- SSD1306 OLED display (128x64, I2C). When connected, the display shows live attack timers, current attack status, menu navigation, captured passwords from the Evil Twin module, and device logs. The firmware auto-detects the display on boot. If no display is found, initialisation is skipped silently and all functionality remains available through the web interface.
+- SSD1306 OLED display (128×64, I2C). Shows live attack timers, status, and captured Evil Twin passwords directly on the device. Auto-detected on boot — if it's not there, the firmware just skips it silently and the web UI still has 100% of the functionality.
+
+---
+
+## Installation
+
+1. Grab the latest binaries from the **[Releases page](https://github.com/LuizFilipe89/ESP32-CRX3/releases)**, or build from source with ESP-IDF v5.3.2 (`idf.py build`).
+2. Flash it:
+   ```bash
+   idf.py -p <PORT> flash
+   ```
+   …or with `esptool.py` directly:
+   ```bash
+   esptool.py --chip esp32 -p <PORT> -b 460800 write_flash \
+     --flash_mode dio --flash_freq 80m --flash_size detect \
+     0x1000   bootloader.bin \
+     0x8000   partition-table.bin \
+     0x10000  projecthydra-32.bin \
+     0x190000 storage.bin
+   ```
+3. Power the board, connect to the `crx3` Wi-Fi network (see [Default Credentials](#default-credentials)), and open **`http://192.168.4.1`** in any browser.
 
 ---
 
 ## How It Works
 
-The ESP32 runs its own Wi-Fi access point (management AP) on boot. You connect a phone or laptop to that AP and open `http://192.168.4.1` in a browser. The web interface is served from SPIFFS flash storage on the device. From there you can scan nearby networks, select targets, configure and launch attacks, monitor deauthentication activity, and change device credentials.
+On boot, the ESP32 raises its own Wi-Fi access point (the "management AP"). Connect a phone or laptop to it and open `http://192.168.4.1` — the whole control panel is served straight from the device's flash storage, no internet needed.
 
-The management AP is temporarily disabled during some attacks that require exclusive use of the radio (Deauth, Evil Twin, Super Clone). For those attacks, you lose the web interface connection while the attack runs. A configurable timeout brings the device back automatically. Without a timeout set, a power cycle is required to stop the attack and restore access.
+From there you scan nearby networks, tap one to select it as a target, pick an attack, configure it, and launch — all with live status and inline "what does this do?" explanations next to every option.
 
----
-## Dependencies
- 
-| Library | License |
-|---|---|
-| [u8g2-hal-esp-idf](https://github.com/mkfrey/u8g2-hal-esp-idf) | See repo |
-| [ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard) | See repo |
-| [u8g2](https://github.com/olikraus/u8g2) | BSD 2-Clause |
-| [esp-nimble-cpp](https://github.com/h2zero/esp-nimble-cpp) | Apache 2.0 |
- 
+**One thing to know going in:** attacks that need exclusive use of the radio (Deauth, Evil Twin, Multi-Clone) temporarily shut down the management AP, so **you'll lose the web UI connection while the attack runs.** This is normal, not a crash — there's no live "stop" button once an attack like this is running, since the web UI itself is what goes down. A configurable timeout brings the AP back automatically; without one, a power cycle is what restores it (the custom-SSID Evil Twin mode is the one exception, with its own dedicated stop route — see below).
+
 ---
 
 ## Attacks
 
-### Deauthentication
+### 🎯 Deauthentication
 
-Sends raw 802.11 deauthentication frames to disconnect clients from a target AP. Supports up to 16 simultaneous targets. Devices with 802.11w (Management Frame Protection) enabled may resist frame-injection deauth. See Super Clone for an approach that bypasses MFP.
+Sends raw 802.11 deauthentication frames to disconnect clients from a target access point. Up to **16 simultaneous targets**, with intensity adjustable from 1 to **50 frames per burst**.
 
-**Methods:** Deauth frames only / Deauth + disassociation frames
-
----
-
-### WPA Handshake Capture
-
-Forces connected clients to re-authenticate by sending deauth frames, then captures the resulting WPA2 4-way handshake. The capture is saved as `.pcap` and `.hccapx` files, compatible with Hashcat and aircrack-ng for offline auditing against a wordlist.
-
-A connected client must be present on the target network. The attack runs until a handshake is captured or stopped manually.
+| Method | How it works | Best against |
+|---|---|---|
+| **Normal Deauth** | Classic broadcast deauth aimed at the whole AP | Most open/WPA2 networks |
+| **BSSID Clone (Aggressive)** | Raises a rogue AP cloning the target's BSSID to confuse clients | Devices with 802.11w (Management Frame Protection), which ignore plain broadcast deauth |
+| **Multi-Clone Deauth** | Rogue AP + a flood of space-padded SSID clones of the target | Overwhelming a network's visibility as well as connectivity |
+| **Targeted Clients** | Sniffs which stations are actually connected, then deauths each one directly (with broadcast fallback) | Stubborn devices that shrug off broadcast deauth |
 
 ---
 
-### Clientless PMKID Capture
+### 🤝 WPA Handshake Capture
 
-Requests the PMKID from the first EAPOL-Key frame during association. Unlike handshake capture, no connected client is required — only the AP needs to be in range. The PMKID is derived from the PMK and both MAC addresses, and can be audited offline with Hashcat (hash mode 22000).
+Nudges connected clients to re-authenticate (via deauth), then captures the resulting WPA2 4-way handshake — saved as **`.pcap`** and **`.hccapx`**, ready to drop straight into Hashcat or aircrack-ng for offline password auditing against a wordlist.
 
-Works on most modern WPA2 access points. Some APs do not include the PMKID in their EAPOL frames.
-
----
-
-### Beacon Spam
-
-Floods the local radio environment with fake 802.11 beacon frames, each carrying a randomly generated SSID. This pollutes the Wi-Fi scan list on all nearby devices. Configurable number of fake networks (1–100).
+Methods: **BSSID Clone**, **Normal Deauth**, or **Silent Capture** (no deauth sent at all — just waits patiently for a natural handshake, stealthier but slower). Requires at least one connected client on the target network; runs until a handshake lands, the configured timeout elapses, or you power-cycle the device.
 
 ---
 
-### Ghost Mode (Probe Request Spam)
+### 📡 Beacon Spam
 
-Many devices continuously broadcast probe requests for every saved Wi-Fi network. Ghost Mode listens for these probes, extracts the SSIDs, and begins advertising those exact network names. Devices attempt to connect to the ESP32 instead of their saved network.
+Floods the local airwaves with fake 802.11 beacon frames — pollutes every nearby device's Wi-Fi scan list. Pick how many fake networks to broadcast, **up to 200**, and a naming style:
 
----
-
-### Evil Twin
-
-Deploys an open (no password) clone of the selected AP using the same SSID. Simultaneously runs a deauthentication attack against the legitimate AP to force clients to disconnect. Clients searching for a network see the open clone and connect to it. They are redirected to a captive portal that requests the network password. The attack continues until a password submission is received and verified, at which point the result is logged and displayed.
-
-The management web interface is unavailable during this attack. The device must be power cycled to stop it if no timeout is set.
+- **Common Names** — believable everyday SSIDs (`TP-Link_5G`, `Home-WiFi`…)
+- **Random Strings** — pure noise
+- **Rick Roll** — the SSIDs spell out the lyrics, one word per network
+- **Security-themed** — alarming names for a bit of chaos ("FBI Surveillance Van", etc.)
 
 ---
 
-### BSSID Clone (Twin Deauth)
+### 👻 Ghost Mode (Probe Request Spam)
 
-Clones the target AP's SSID and BSSID onto the ESP32 on the same channel. Both the real AP and the clone now appear identical to clients. The conflicting presence causes clients to disconnect. Unlike raw frame injection deauth, this technique is effective on devices with 802.11w Management Frame Protection because it does not rely on sending unprotected management frames — it creates a legitimate-looking second AP.
-
----
-
-### SSID Cloner
-
-Make multiple clones with the same SSID names by adding some spaces with the name.
-
----
-### BLE Spam
-
-Broadcasts Bluetooth Low Energy advertisement packets that mimic Apple, Samsung, and Google device proximity pairing signals. iPhones, iPads, and Android devices display pairing popups for nearby audio devices, setup notifications for Apple TV, HomePod, Vision Pro, and others. The target device type is selectable. Random MAC address rotation is supported.
-
-Supported targets include AirPods (all generations), AirPods Pro (all generations), AirPods Max, Beats products, Apple TV setup and pairing prompts, HomePod setup, Vision Pro, Galaxy Buds (all variants), Pixel Buds, and random selection modes.
+Most phones and laptops constantly broadcast probe requests for every Wi-Fi network they've ever saved. Ghost Mode listens for those, extracts the SSIDs, and starts advertising those exact names back — so devices nearby try to auto-connect to your ESP32 instead of their real saved network. No target selection needed.
 
 ---
 
-### BT Payload 
+### 🎭 Evil Twin — fully customizable
 
-Advertises the ESP32 as a Bluetooth HID keyboard under the name "Hydra-RandomNumber". When a Windows PC pairs with it, the firmware sends keystrokes to perform the payloads.
+This is the flagship attack, and the one this fork spent the most time on. There are **two ways to run it**, and both let you customize what the victim actually sees.
+
+#### Mode 1 — Clone a real network
+
+Pick a scanned AP as the target. CRX3 raises an **open (no password) clone** using the same SSID, while simultaneously deauthenticating the real AP so nearby clients disconnect. When they go looking for a network, they see the open clone, connect to it, and land on a captive portal asking for the Wi-Fi password.
+
+- Every submission is checked against the **real** network before being accepted — wrong passwords are logged and the portal shows an error, correct ones are reported as captured.
+- A safety timeout (5 minutes with no victim connecting) automatically calls off the attack and restores the management AP on its own — you're never permanently stuck waiting.
+- There's no manual stop for this mode: like every attack that takes the management AP down, it ends on its own (password captured or the 5-minute timeout) or via a power cycle.
+
+#### Mode 2 — Launch your own custom-name rogue AP
+
+Don't want to clone anyone? Type in **any SSID you want** from the Devil Twin tab and launch a standalone open network. There's no real AP to deauth and no password to verify against — it just sits there, broadcasting your chosen name, logging every credential anyone submits to it, for as long as you want.
+
+- Because this mode is meant to run indefinitely (collecting credentials over hours, say, at a public space you're authorized to test), it has **no automatic timeout**.
+- **How to stop it:** since the management AP goes down while this runs, connect a device to your **own rogue AP** and open `http://192.168.4.1/crx3-admin-stop` — a dedicated admin route that's registered even while the fake network is up. This is the *only* attack in CRX3 with a way to stop it manually mid-run; every other attack ends via its timeout or a power cycle (see [How It Works](#how-it-works)).
+
+#### Making it look real: custom captive portal pages
+
+Both modes serve a captive-portal HTML page. From **Settings → Portal Page** you can:
+
+- **Upload** your own HTML file (up to 100 KB) to replace the default portal — see **[docs/custom-captive-portal-guide.md](docs/custom-captive-portal-guide.md)** for exactly what the page needs to work (form field names, required endpoints).
+- **Preview** the currently active portal before running an attack.
+- **Restore** the factory-default portal at any time.
+
+#### The credential log
+
+Every submission — right or wrong, from either mode — is appended to a persistent log on the device (survives reboots), viewable and clearable from the **Devil Twin** tab: uptime, SSID, BSSID, username, password, and status at a glance.
 
 ---
 
-### Deauth Attack Detector
+### 🚨 Deauth Attack Detector
 
-Puts the ESP32 into promiscuous 802.11 monitor mode and inspects raw management frames. Alerts when more than 10 deauthentication frames from a single BSSID are observed within one second — the signature pattern of a deauthentication attack. Broadcast deauth frames (source `00:00:00:00:00:00`) are also flagged. Results are shown in a live log table in the web interface.
+Flips the whole idea around: puts the ESP32 into passive promiscuous monitor mode and watches for *someone else's* deauth attack. Flags a BSSID once it sends more than 10 deauth frames in under a second — the textbook signature of an active attack — including broadcast deauths from a spoofed `00:00:00:00:00:00` source. Alerts show up in a live table in the web UI. Doesn't transmit anything; purely a monitor.
 
 ---
 
-## Web Interface
+### 🖨️ Network Printer Attack (in development)
 
-Accessible at `http://192.168.4.1` after connecting to the device's management AP.
+Joins a chosen Wi-Fi network as a station, scans the local subnet for hosts with the raw printing port open (9100 / JetDirect), and can fire off a raw print job to one or more discovered printers. The tab is present and wired up in the UI, but this feature is still being refined — expect rough edges if you try it.
 
-- **Scan** — scans nearby networks and displays SSID, BSSID, and signal strength. Tap a row to select it as an attack target.
-- **Attack** — configure and launch any of the above attacks. Shows live status, elapsed time, and captured results.
-- **Detector** — start/stop the deauth monitor and view the alert log.
-- **Settings** — change the management AP SSID and password. The device reboots on save.
-- **About** — firmware version, credits, and legal notice.
+---
+
+## Web Interface Tour
+
+Everything lives at `http://192.168.4.1`, available in **English and Portuguese (BR)** (switch anytime in Settings).
+
+| Tab | What's there |
+|---|---|
+| **Scan** | Nearby networks with SSID / BSSID / signal strength — tap a row to target it |
+| **Attack** | Configure and launch any attack above, with live status, elapsed time, and results |
+| **Devil Twin** | Evil Twin controls (both modes), custom portal upload/preview/restore, credential log |
+| **Printer** | The in-development printer attack |
+| **Detector** | Start/stop the deauth monitor, view the live alert log |
+| **Settings** | Language switch, change the management AP's SSID/password (reboots to apply) |
+| **About** | Firmware version, credits, legal notice |
 
 ---
 
 ## Default Credentials
 
-| Field    | Default         |
-|----------|-----------------|
-| SSID     | `hydra`  |
-| Password | `notforfun`  |
-| Web UI   | `192.168.4.1`   |
+| Field    | Default       |
+|----------|---------------|
+| SSID     | `crx3`        |
+| Password | `notforfun`   |
+| Web UI   | `192.168.4.1` |
 
-Credentials can be changed from the Settings tab and are persisted to NVS flash across reboots.
+Change these anytime from **Settings** — saved to NVS flash, so they survive reboots.
 
 ---
 
-## Credits
+## Dependencies
+
+| Library | License | Notes |
+|---|---|---|
+| [u8g2-hal-esp-idf](https://github.com/mkfrey/u8g2-hal-esp-idf) | See repo | Drives the optional OLED display |
+| [u8g2](https://github.com/olikraus/u8g2) | BSD 2-Clause | Drives the optional OLED display |
+| [esp-nimble-cpp](https://github.com/h2zero/esp-nimble-cpp) | Apache 2.0 | Vendored, currently unused — reserved for a possible future BLE module |
+| [ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard) | See repo | Vendored, currently unused — reserved for a possible future BLE module |
+
+---
+
+## Legal & Credits
+
+**CRX3 is for educational purposes only.** Use it exclusively on networks and devices you own, or have explicit written authorization to test. Unauthorized use against networks that aren't yours is illegal in most jurisdictions — including under the Computer Fraud and Abuse Act (US), Computer Misuse Act (UK), and IT Act 2000 (India/Bangladesh), among others. **The authors — original and fork — accept no liability for misuse or any resulting damage. You are solely responsible for how you use this software.**
+
+The full codebase, attack modules included, is **100% open source under GPL-3.0** — read it, learn from it, audit it.
 
 | Role | Name |
 |---|---|
-| Lead Developer | Sameer Al Sahab |
+| This fork (CRX3) | [LuizFilipe89](https://github.com/LuizFilipe89) — built with Claude Sonnet (Anthropic), no prior programming experience |
+| Lead Developer, Hydra-ESP / ProjectHydraOS | [Sameer Al Sahab](https://github.com/SameerAlSahab) |
 | Original Codebase | [risinek](https://github.com/risinek/esp32-wifi-penetration-tool) |
 | Inspiration | [spacehuhn](https://github.com/SpacehuhnTech/esp8266_deauther) |
-| BLE Spam Code | [justcallmekoko and ckcr4lyf](https://github.com/ckcr4lyf/EvilAppleJuice-ESP32)
-
----
-
-## Legal
-
-This firmware is an educational security research tool. Use it only on networks and devices you own or have received explicit written authorisation to test. Unauthorised use is illegal under the Computer Fraud and Abuse Act (US), Computer Misuse Act (UK), IT Act 2000 (Bangladesh/India), and equivalent legislation in most other jurisdictions.
-
-The authors accept no liability for misuse. You are solely responsible for your actions.

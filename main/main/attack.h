@@ -84,15 +84,6 @@ const attack_status_t *attack_get_status();
 void attack_update_status(attack_state_t state);
 
 /**
- * @brief Stops the attack that is currently running (if any).
- *
- * Performs the same per-type cleanup as the timeout handler and marks the
- * attack FINISHED. Safe to call when nothing is running (no-op). Used by the
- * serial console's "stop" command.
- */
-void attack_stop_current(void);
-
-/**
  * @brief Initialises attack wrapper. This function should be callend only once.
  * 
  * This function creates all necessary resources for attack wrapper. It has to be called before any attack can be run.

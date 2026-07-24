@@ -20,7 +20,6 @@
 #include "wifi_controller.h"
 #include "webserver.h"
 #include "hydra_ssd1306_display.h"
-#include "serial_console.h"
 
 static const char* TAG = "main";
 
@@ -45,17 +44,5 @@ void app_main(void)
 
     hydra_display_init();
 
-    /* Needed by the serial API bridge (eviltwin log, captive portal files,
-     * download-pass) regardless of whether the WiFi web UI is enabled. */
-    webserver_mount_storage();
-
-#if CONFIG_CRX3_START_WEB_INTERFACE
-    ESP_LOGI(TAG, "Web interface enabled — starting webserver");
     webserver_run();
-#else
-    ESP_LOGW(TAG, "Web interface disabled (CONFIG_CRX3_START_WEB_INTERFACE=n) — serial console only");
-#endif
-
-    /* Serial console is always available so the device can be driven over USB. */
-    serial_console_start();
 }
