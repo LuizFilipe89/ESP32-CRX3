@@ -281,7 +281,10 @@ void serial_console_start(void) {
     esp_console_repl_t *repl = NULL;
     esp_console_repl_config_t repl_config = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
     repl_config.prompt = "crx3>";
-    repl_config.max_cmdline_length = 1024;   /* headroom for base64 API frames */
+    repl_config.max_cmdline_length = 2048;   /* headroom for base64 API frames (chunked
+                                               * uploads keep raw chunks small — ~600B —
+                                               * so this only needs to cover form bodies
+                                               * like settings/printer-print, not files) */
     repl_config.task_stack_size = 8192;
 
     esp_console_dev_uart_config_t uart_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();

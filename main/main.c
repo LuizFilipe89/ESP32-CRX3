@@ -45,6 +45,10 @@ void app_main(void)
 
     hydra_display_init();
 
+    /* Needed by the serial API bridge (eviltwin log, captive portal files,
+     * download-pass) regardless of whether the WiFi web UI is enabled. */
+    webserver_mount_storage();
+
 #if CONFIG_CRX3_START_WEB_INTERFACE
     ESP_LOGI(TAG, "Web interface enabled — starting webserver");
     webserver_run();

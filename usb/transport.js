@@ -263,6 +263,12 @@ async function crx3Fetch(path, opts) {
     else if (opts.body instanceof Uint8Array) body = opts.body;
     else body = enc.encode(String(opts.body));
   }
+  /* The custom captive portal (up to 100 KB) doesn't fit on one console line
+   * — split it into small chunked requests instead. app.js is untouched: it
+   * still calls a single fetch('/devil_twin/upload', {body: <whole file>}). */
+  if (method === "POST" && path === "/devil_twin/upload" && body) {
+    return crx3ChunkedUpload(body);
+  }
   try {
     const res = await con.apiRequest(method, path, body, path === "/ap-list" ? 20000 : 5000);
     return new Response(res.bytes, { status: res.status || 200, headers: { "Content-Type": "application/octet-stream" } });
@@ -271,6 +277,59 @@ async function crx3Fetch(path, opts) {
     return new Response("", { status: 504 });
   }
 }
+
+const CRX3_UPLOAD_CHUNK = 600;   /* raw bytes/chunk — keeps each console line well under max_cmdline_length */
+async function crx3ChunkedUpload(bytes) {
+  try {
+    const startRes = await con.apiRequest("POST", "/devil_twin/upload/start", enc.encode(String(bytes.length)), 5000);
+    if (startRes.status !== 200) return new Response(startRes.bytes, { status: startRes.status });
+    for (let off = 0; off < bytes.length; off += CRX3_UPLOAD_CHUNK) {
+      const chunk = bytes.subarray(off, off + CRX3_UPLOAD_CHUNK);
+      const r = await con.apiRequest("POST", "/devil_twin/upload/chunk", chunk, 5000);
+      if (r.status !== 200) return new Response(r.bytes, { status: r.status });
+    }
+    const finRes = await con.apiRequest("POST", "/devil_twin/upload/finish", null, 8000);
+    return new Response(finRes.bytes, { status: finRes.status || 200 });
+  } catch (e) {
+    console.error("[crx3 usb] chunked upload failed:", e);
+    return new Response("", { status: 504 });
+  }
+}
+
+/* ─────────────────────────── Blob downloads ──────────────────────────────
+ * Over WiFi these were plain <a href download> links to a real HTTP server.
+ * Over USB there's no HTTP server to navigate to, so fetch the bytes through
+ * the same serial API and trigger the download via a Blob object URL. */
+async function crx3Download(path, filename) {
+  if (!con.connected) { alert("não conectado"); return; }
+  try {
+    const res = await con.apiRequest("GET", path, null, 20000);
+    if (res.status !== 200) { alert("Falha ao baixar (" + res.status + ")"); return; }
+    const blob = new Blob([res.bytes], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename || "download";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+  } catch (e) {
+    alert("Falha ao baixar: " + e.message);
+  }
+}
+window.crx3Download = crx3Download;
+
+async function crx3Preview(path) {
+  if (!con.connected) { alert("não conectado"); return; }
+  try {
+    const res = await con.apiRequest("GET", path, null, 8000);
+    if (res.status !== 200) { alert("Falha ao carregar preview (" + res.status + ")"); return; }
+    const blob = new Blob([res.bytes], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  } catch (e) {
+    alert("Falha: " + e.message);
+  }
+}
+window.crx3Preview = crx3Preview;
 
 /* ─────────────────────────── XMLHttpRequest shim ────────────────────────── */
 const OrigXHR = window.XMLHttpRequest;

@@ -321,12 +321,12 @@
             <img src="icons/rocket.png" style="width:18px;height:18px;filter:brightness(10);" alt="">
             <span data-i18n="portal.upload">Upload</span>
           </button>
-          <a id="portal-preview-link" class="btn-secondary"
-             style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;"
-             href="/devil_twin/index.html" target="_blank" rel="noopener">
+          <button type="button" id="portal-preview-link" class="btn-secondary"
+                  style="display:inline-flex;align-items:center;gap:6px;"
+                  onclick="crx3Preview('/devil_twin/index.html')">
             <img src="icons/preview.png" class="btn-icon" alt="">
             <span data-i18n="portal.preview">Preview</span>
-          </a>
+          </button>
           <button onclick="restorePortal()" class="btn-secondary">
             <img src="icons/restart.png" class="btn-icon" alt="">
             <span data-i18n="portal.restore">Restore Default</span>
@@ -363,11 +363,11 @@
             <img src="icons/refresh.png" class="btn-icon" alt="">
             <span data-i18n="creds.refresh">Refresh</span>
           </button>
-          <a class="btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;"
-             href="http://192.168.4.1/eviltwin-log" download="eviltwin_log.txt">
+          <button type="button" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;"
+                  onclick="crx3Download('/eviltwin-log','eviltwin_log.txt')">
             <img src="icons/download.png" class="btn-icon" alt="">
             <span data-i18n="creds.download">Download</span>
-          </a>
+          </button>
           <button onclick="clearEvilTwinLog()" class="btn-secondary">
             <img src="icons/close.png" class="btn-icon" alt="">
             <span data-i18n="creds.clear">Clear Log</span>

@@ -13,6 +13,17 @@ enum {
 
 #define MAX_ATTACK_TARGETS 16
 
+#define PORTAL_ACTIVE_PATH  "/spiffs/devil_twin/index.html"
+#define PORTAL_TMP_PATH     "/spiffs/devil_twin/index.upload.tmp"
+#define PORTAL_DEFAULT_PATH "/spiffs/devil_twin/index.default.html"
+#define PORTAL_MAX_BYTES    (102400)   /* 100 KB hard ceiling */
+
+/** Mounts the SPIFFS "storage" partition (index.html, app.js, devil_twin files, etc.).
+ *  Idempotent. Needed by both webserver_run() and the serial API bridge — the
+ *  latter runs even when CONFIG_CRX3_START_WEB_INTERFACE=n, so this must not
+ *  be gated behind the WiFi web UI being enabled. */
+void webserver_mount_storage(void);
+
 /**
  * Binary layout (20 bytes fixed — HTML must match exactly):
  * [0]      type

@@ -1120,10 +1120,8 @@ function renderHandshakeResult(content, size) {
     }
     el.innerHTML =
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">' +
-    '<a class="btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center;"' +
-    '   href="http://192.168.4.1/capture.pcap" download="capture.pcap">' + escapeHtml(t("hs.downloadPcap")) + '</a>' +
-    '<a class="btn-secondary" style="text-decoration:none;display:inline-flex;align-items:center;"' +
-    '   href="http://192.168.4.1/capture.hccapx" download="capture.hccapx">' + escapeHtml(t("hs.downloadHccapx")) + '</a>' +
+    '<button type="button" class="btn-secondary" onclick="crx3Download(\'/capture.pcap\',\'capture.pcap\')">' + escapeHtml(t("hs.downloadPcap")) + '</button>' +
+    '<button type="button" class="btn-secondary" onclick="crx3Download(\'/capture.hccapx\',\'capture.hccapx\')">' + escapeHtml(t("hs.downloadHccapx")) + '</button>' +
     '</div>' +
     '<div class="result-block"><div class="result-block-label">' + escapeHtml(t("hs.rawLabel")) + '</div>' +
     '<pre><code id="hccapx-dump">' + hs + '</code></pre>' +

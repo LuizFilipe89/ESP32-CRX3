@@ -31,11 +31,6 @@
 static const char *TAG = "webserver";
 ESP_EVENT_DEFINE_BASE(WEBSERVER_EVENTS);
 
-#define PORTAL_ACTIVE_PATH  "/spiffs/devil_twin/index.html"
-#define PORTAL_TMP_PATH     "/spiffs/devil_twin/index.upload.tmp"
-#define PORTAL_DEFAULT_PATH "/spiffs/devil_twin/index.default.html"
-#define PORTAL_MAX_BYTES    (102400)   /* 100 KB hard ceiling */
-
 static httpd_handle_t server = NULL;
 static bool spiffs_mounted   = false;
 
@@ -43,7 +38,7 @@ static void url_decode(char *dst, const char *src);
 
 
 
-static void init_spiffs(void) {
+void webserver_mount_storage(void) {
     if (spiffs_mounted) return;
     esp_vfs_spiffs_conf_t conf = {
         .base_path              = "/spiffs",
@@ -689,7 +684,7 @@ void webserver_stop(void) {
 
 void webserver_run(void) {
     if (server != NULL) return;
-    init_spiffs();
+    webserver_mount_storage();
 
     httpd_config_t config     = HTTPD_DEFAULT_CONFIG();
     config.max_uri_handlers   = 42;
