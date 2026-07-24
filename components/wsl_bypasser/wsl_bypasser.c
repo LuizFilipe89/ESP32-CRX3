@@ -107,6 +107,23 @@ void wsl_bypasser_send_beacon_frame(uint8_t *bssid, uint8_t *ssid, uint8_t ssid_
     // Length so far
     uint16_t frame_length = 38 + ssid_length;
 
+    // Supported Rates tag — mandatory in every real beacon per 802.11 spec
+    // (Table 9-27). Without it, most phone Wi-Fi stacks (Android's
+    // wificond/nl80211 scan cache, iOS) silently drop the BSS from the list
+    // shown in Settings, even though a raw sniffer/analyzer app that just
+    // parses whatever's on air keeps showing it — which is exactly why a
+    // Wi-Fi analyzer app could see far more fake APs than the phone's own
+    // network picker did. High bit on a rate marks it "basic/mandatory",
+    // same pattern real APs use.
+    static const uint8_t supported_rates[] = {
+        0x82, 0x84, 0x8b, 0x96, // 1, 2, 5.5, 11 Mbps (basic)
+        0x24, 0x30, 0x48, 0x6c  // 18, 24, 36, 54 Mbps
+    };
+    beacon_frame[frame_length++] = 0x01; // Supported Rates tag number
+    beacon_frame[frame_length++] = sizeof(supported_rates);
+    memcpy(&beacon_frame[frame_length], supported_rates, sizeof(supported_rates));
+    frame_length += sizeof(supported_rates);
+
     // Add channel info
     beacon_frame[frame_length++] = 0x03; // DS Parameter Set tag
     beacon_frame[frame_length++] = 0x01; // Length
