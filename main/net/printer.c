@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <fcntl.h>
 
@@ -348,6 +349,165 @@ static bool ipp_put_attr(uint8_t *buf, size_t buf_size, size_t *p,
     return true;
 }
 
+/* Same as ipp_put_attr() but for a 4-byte signed integer value (tag 0x21),
+ * e.g. "copies" — a real Job Template attribute, unlike the operation
+ * attributes above. */
+static bool ipp_put_attr_int(uint8_t *buf, size_t buf_size, size_t *p,
+                              uint8_t tag, const char *name, int32_t value) {
+    size_t nl = strlen(name);
+    if (*p + 1 + 2 + nl + 2 + 4 > buf_size) return false;
+    buf[(*p)++] = tag;
+    buf[(*p)++] = (nl >> 8) & 0xFF;
+    buf[(*p)++] = nl & 0xFF;
+    memcpy(&buf[*p], name, nl); *p += nl;
+    buf[(*p)++] = 0x00; buf[(*p)++] = 0x04;
+    buf[(*p)++] = (value >> 24) & 0xFF;
+    buf[(*p)++] = (value >> 16) & 0xFF;
+    buf[(*p)++] = (value >> 8) & 0xFF;
+    buf[(*p)++] = value & 0xFF;
+    return true;
+}
+
+/* ── Minimal PDF builder ─────────────────────────────────────────────────── *
+ * Per the Printer Working Group's own IPP client guide, "application/
+ * octet-stream" (auto-detect document-format) is always accepted per spec
+ * but "detection accuracy varies widely" in practice, and plain "text/plain"
+ * isn't guaranteed to be accepted by an IPP printer at all — "application/
+ * pdf" is what's actually most broadly supported. Handwritten instead of
+ * pulling in a PDF library because the document is trivial: one font,
+ * left-aligned lines, no images — well within reach of PDF's plain-text
+ * object syntax (a valid PDF is mostly just readable ASCII + a byte-offset
+ * index at the end). */
+#define PDF_CHARS_PER_LINE 80
+#define PDF_LINES_PER_PAGE 45
+#define PDF_MAX_PAGES      2
+#define PDF_MAX_TEXT_CHARS (PDF_CHARS_PER_LINE * PDF_LINES_PER_PAGE * PDF_MAX_PAGES)
+#define PDF_BUF_CAP        24576
+#define PDF_CONTENT_CAP    10240
+
+static bool pdf_appendf(uint8_t *buf, size_t cap, size_t *pos, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf((char *) buf + *pos, cap - *pos, fmt, ap);
+    va_end(ap);
+    if (n < 0 || (size_t) n >= cap - *pos) return false;
+    *pos += (size_t) n;
+    return true;
+}
+
+/* Writes one line as a PDF string-literal "Tj" show-text op, escaping the
+ * three bytes a "(...)" literal requires escaped. Non-Latin-1 bytes (e.g.
+ * multi-byte UTF-8 accented characters) pass through as-is and will render
+ * as garbage under base-14 Helvetica/WinAnsiEncoding — acceptable for a
+ * nuisance/spam payload, not a document printer. */
+static bool pdf_append_escaped_line(uint8_t *buf, size_t cap, size_t *pos,
+                                     const char *line, size_t line_len) {
+    char esc[PDF_CHARS_PER_LINE * 2 + 1];
+    size_t e = 0;
+    for (size_t i = 0; i < line_len && e < sizeof(esc) - 1; i++) {
+        char c = line[i];
+        if (c == '\\' || c == '(' || c == ')') esc[e++] = '\\';
+        esc[e++] = c;
+    }
+    esc[e] = '\0';
+    return pdf_appendf(buf, cap, pos, "(%s) Tj\nT*\n", esc);
+}
+
+/* Builds a minimal multi-page PDF wrapping `text` as hard-wrapped Helvetica
+ * body lines (up to PDF_MAX_PAGES pages; anything past PDF_MAX_TEXT_CHARS is
+ * silently dropped — this is a nuisance payload, not a full document
+ * formatter). Returns a malloc'd buffer (caller frees) and its length via
+ * *out_len, or NULL on failure. */
+static uint8_t *build_pdf(const char *text, size_t *out_len) {
+    size_t text_len = text ? strlen(text) : 0;
+    if (text_len > PDF_MAX_TEXT_CHARS) text_len = PDF_MAX_TEXT_CHARS;
+
+    size_t total_lines = (text_len + PDF_CHARS_PER_LINE - 1) / PDF_CHARS_PER_LINE;
+    if (total_lines == 0) total_lines = 1;
+    size_t total_pages = (total_lines + PDF_LINES_PER_PAGE - 1) / PDF_LINES_PER_PAGE;
+    if (total_pages == 0) total_pages = 1;
+    if (total_pages > PDF_MAX_PAGES) total_pages = PDF_MAX_PAGES;
+
+    uint8_t *buf = malloc(PDF_BUF_CAP);
+    if (!buf) return NULL;
+    uint8_t *content = malloc(PDF_CONTENT_CAP);
+    if (!content) { free(buf); return NULL; }
+
+    size_t pos = 0;
+    size_t total_objs = 3 + total_pages * 2;
+    size_t offsets[3 + PDF_MAX_PAGES * 2 + 1] = {0};   /* 1-based, by object number */
+
+    bool ok = pdf_appendf(buf, PDF_BUF_CAP, &pos, "%%PDF-1.4\n");
+
+    offsets[1] = pos;
+    ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos, "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+    offsets[2] = pos;
+    ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos, "2 0 obj\n<< /Type /Pages /Kids [");
+    for (size_t i = 0; i < total_pages && ok; i++) {
+        ok = pdf_appendf(buf, PDF_BUF_CAP, &pos, "%u 0 R ", (unsigned)(4 + i * 2));
+    }
+    ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos, "] /Count %u >>\nendobj\n", (unsigned) total_pages);
+
+    offsets[3] = pos;
+    ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos,
+        "3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n");
+
+    const char *cursor = text;
+    size_t remaining = text_len;
+
+    for (size_t pg = 0; pg < total_pages && ok; pg++) {
+        size_t page_obj = 4 + pg * 2, content_obj = 5 + pg * 2;
+
+        /* Content stream is built separately first because PDF requires its
+         * exact byte length up front (/Length), before the stream body. */
+        size_t clen = 0;
+        ok = pdf_appendf(content, PDF_CONTENT_CAP, &clen, "BT /F1 11 Tf 40 750 Td 13 TL\n");
+        for (size_t ln = 0; ln < PDF_LINES_PER_PAGE && remaining > 0 && ok; ln++) {
+            size_t take = remaining < PDF_CHARS_PER_LINE ? remaining : PDF_CHARS_PER_LINE;
+            ok = pdf_append_escaped_line(content, PDF_CONTENT_CAP, &clen, cursor, take);
+            cursor += take;
+            remaining -= take;
+        }
+        ok = ok && pdf_appendf(content, PDF_CONTENT_CAP, &clen, "ET\n");
+
+        offsets[page_obj] = pos;
+        ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos,
+            "%u 0 obj\n<< /Type /Page /Parent 2 0 R "
+            "/Resources << /Font << /F1 3 0 R >> >> "
+            "/MediaBox [0 0 612 792] /Contents %u 0 R >>\nendobj\n",
+            (unsigned) page_obj, (unsigned) content_obj);
+
+        offsets[content_obj] = pos;
+        ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos, "%u 0 obj\n<< /Length %u >>\nstream\n",
+                                (unsigned) content_obj, (unsigned) clen);
+        if (ok && pos + clen <= PDF_BUF_CAP) {
+            memcpy(buf + pos, content, clen);
+            pos += clen;
+        } else {
+            ok = false;
+        }
+        ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos, "\nendstream\nendobj\n");
+    }
+
+    free(content);
+    if (!ok) { free(buf); return NULL; }
+
+    size_t xref_offset = pos;
+    ok = pdf_appendf(buf, PDF_BUF_CAP, &pos, "xref\n0 %u\n0000000000 65535 f \n", (unsigned)(total_objs + 1));
+    for (size_t i = 1; i <= total_objs && ok; i++) {
+        ok = pdf_appendf(buf, PDF_BUF_CAP, &pos, "%010u 00000 n \n", (unsigned) offsets[i]);
+    }
+    ok = ok && pdf_appendf(buf, PDF_BUF_CAP, &pos,
+        "trailer\n<< /Size %u /Root 1 0 R >>\nstartxref\n%u\n%%%%EOF\n",
+        (unsigned)(total_objs + 1), (unsigned) xref_offset);
+
+    if (!ok) { free(buf); return NULL; }
+
+    *out_len = pos;
+    return buf;
+}
+
 /* Minimal IPP client — just enough of the Print-Job operation (RFC 8010/
  * 2911) to get a job accepted by "IPP Everywhere"/AirPrint-class printers,
  * which by now is effectively every modern inkjet (Epson included — it's
@@ -356,11 +516,15 @@ static bool ipp_put_attr(uint8_t *buf, size_t buf_size, size_t *p,
  * detail — any reply at all after sending the job means the printer's IPP
  * server accepted the request instead of just resetting the connection,
  * which is as much as the ESP32 side can honestly claim to know. */
-static bool send_ipp_print(const char *ip, const char *text) {
-    int s = connect_timeout(ip, PRN_PORT_IPP, PRN_CONNECT_TMO_MS);
-    if (s < 0) return false;
+static bool send_ipp_print(const char *ip, const char *text, int copies) {
+    size_t pdf_len = 0;
+    uint8_t *pdf = build_pdf(text, &pdf_len);
+    if (!pdf) return false;
 
-    uint8_t ipp[300];
+    int s = connect_timeout(ip, PRN_PORT_IPP, PRN_CONNECT_TMO_MS);
+    if (s < 0) { free(pdf); return false; }
+
+    uint8_t ipp[400];
     size_t p = 0;
     ipp[p++] = 0x01; ipp[p++] = 0x01;                                      // IPP/1.1
     ipp[p++] = 0x00; ipp[p++] = 0x02;                                      // operation-id: Print-Job
@@ -375,12 +539,17 @@ static bool send_ipp_print(const char *ip, const char *text) {
         ipp_put_attr(ipp, sizeof(ipp), &p, 0x48, "attributes-natural-language", "en") &&
         ipp_put_attr(ipp, sizeof(ipp), &p, 0x45, "printer-uri", printer_uri) &&
         ipp_put_attr(ipp, sizeof(ipp), &p, 0x42, "requesting-user-name", "crx3") &&
-        ipp_put_attr(ipp, sizeof(ipp), &p, 0x49, "document-format", "text/plain") &&
-        p + 1 <= sizeof(ipp);
-    if (!ok) { close(s); return false; }
+        ipp_put_attr(ipp, sizeof(ipp), &p, 0x42, "job-name", "crx3-print") &&
+        ipp_put_attr(ipp, sizeof(ipp), &p, 0x49, "document-format", "application/pdf");
+    if (ok && copies > 1) {
+        ok = (p + 1 <= sizeof(ipp));
+        if (ok) ipp[p++] = 0x02;   // job-attributes-tag — copies is a real Job Template attribute
+        ok = ok && ipp_put_attr_int(ipp, sizeof(ipp), &p, 0x21, "copies", copies);
+    }
+    ok = ok && (p + 1 <= sizeof(ipp));
+    if (!ok) { close(s); free(pdf); return false; }
     ipp[p++] = 0x03;   // end-of-attributes-tag
 
-    size_t text_len = text ? strlen(text) : 0;
     char http_header[160];
     int hlen = snprintf(http_header, sizeof(http_header),
         "POST /ipp/print HTTP/1.1\r\n"
@@ -388,7 +557,7 @@ static bool send_ipp_print(const char *ip, const char *text) {
         "Content-Type: application/ipp\r\n"
         "Content-Length: %u\r\n"
         "Connection: close\r\n\r\n",
-        ip, PRN_PORT_IPP, (unsigned)(p + text_len));
+        ip, PRN_PORT_IPP, (unsigned)(p + pdf_len));
 
     struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
@@ -396,7 +565,7 @@ static bool send_ipp_print(const char *ip, const char *text) {
     ok = hlen > 0 && (size_t) hlen < sizeof(http_header)
       && send_all(s, http_header, hlen)
       && send_all(s, (char *) ipp, p)
-      && (text_len == 0 || send_all(s, text, text_len));
+      && send_all(s, (char *) pdf, pdf_len);
 
     if (ok) {
         char resp[32];
@@ -406,6 +575,7 @@ static bool send_ipp_print(const char *ip, const char *text) {
     }
 
     close(s);
+    free(pdf);
     return ok;
 }
 
@@ -442,7 +612,7 @@ static void print_task(void *arg) {
              * one at all; they don't speak PCL/PJL like HP's LaserJets do.
              * Fall back to IPP (631) so the job still has a real path in. */
             method = "ipp";
-            ok = send_ipp_print(tok, job_text);
+            ok = send_ipp_print(tok, job_text, job_copies);
         }
 
         ESP_LOGI(TAG, "Print -> %s via %s: %s", tok, method, ok ? "sent" : "failed");

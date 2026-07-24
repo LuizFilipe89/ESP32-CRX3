@@ -204,7 +204,7 @@ Flips the whole idea around: puts the ESP32 into passive promiscuous monitor mod
 
 ### 🖨️ Network Printer Attack (in development)
 
-Joins a chosen Wi-Fi network as a station and scans the local subnet for printers on port 9100 (raw/JetDirect), 631 (IPP), or 515 (LPR) — not just 9100, since most consumer inkjets (Epson's included) never open a raw JetDirect port at all and only speak IPP. Printing tries raw PJL first and falls back to a minimal IPP `Print-Job` request when 9100 isn't open, which is what actually gets a job accepted on an IPP/AirPrint-class printer. The tab is present and wired up in the UI, but this feature is still being refined — expect rough edges if you try it.
+Joins a chosen Wi-Fi network as a station and scans the local subnet for printers on port 9100 (raw/JetDirect), 631 (IPP), or 515 (LPR) — not just 9100, since most consumer inkjets (Epson's included) never open a raw JetDirect port at all and only speak IPP. Printing tries raw PJL first and falls back to a minimal IPP `Print-Job` request (with a small hand-built PDF as the payload — the one document format IPP/AirPrint-class printers reliably accept, per the Printer Working Group's own client guide) when 9100 isn't open. The tab is present and wired up in the UI, but this feature is still being refined — expect rough edges if you try it.
 
 ---
 
