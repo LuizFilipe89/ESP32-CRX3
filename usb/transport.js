@@ -165,7 +165,24 @@ class Console {
           this.rx += dec.decode(bytes, { stream: true });
           if (this.rx.length > 200000) this.rx = this.rx.slice(-100000);
         }
-      } catch (e) { break; }
+      } catch (e) {
+        /* WebUSB on Android throws transient "transfer error has occurred" /
+         * "transfer was cancelled" under bus load — well documented in
+         * Jason2866/esp32tool, which retries instead of giving up. Large
+         * responses (e.g. /ap-list, many back-to-back 64-byte reads) are
+         * exactly when this hits. Previously any exception here did `break`,
+         * silently killing the read side while `connected` stayed true — the
+         * socket looked alive but never received another byte, so every
+         * later request just timed out. Only stop on errors that mean the
+         * device is actually gone; retry everything else. */
+        const msg = (e && e.message) || "";
+        const fatal = msg.indexOf("device unavailable") !== -1 ||
+                      msg.indexOf("device has been lost") !== -1 ||
+                      msg.indexOf("device was disconnected") !== -1 ||
+                      msg.indexOf("No device selected") !== -1;
+        if (fatal) break;
+        await sleep(10);
+      }
     }
   }
 
