@@ -169,7 +169,18 @@ void attack_method_super_clone(const wifi_ap_record_t *ap_record) {
 }
 
 void attack_method_super_clone_stop(void) {
+    if (!sc_running) return;
     sc_running = false;
+    /* Callers (attack_dos_stop) immediately follow this with a WiFi mode/MAC
+     * change on the AP interface. super_clone_task still calls
+     * esp_wifi_80211_tx() on WIFI_IF_STA up to ~100ms after seeing sc_running
+     * go false — racing a concurrent esp_wifi_set_mac()/mode change from
+     * another task can fail the TX or, worse, hit the same abort()-on-error
+     * class of bug documented in wifictl_set_ap_mac(). Wait for the task to
+     * actually exit before handing control back. */
+    for (int i = 0; i < 20 && sc_task_handle != NULL; i++) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
 }
 
 /* ───────────────────────── Targeted client deauth ───────────────────────── */

