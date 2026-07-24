@@ -30,9 +30,36 @@ function b64dec(b64) { const s = atob(b64); const u8 = new Uint8Array(s.length);
  * except the baudrate request; (2) DTR/RTS were deasserted on open, but the
  * chip's own init sequence expects them asserted (1/1) with the mask bits set. */
 class Cp210xPort {
-  constructor(device) { this.device = device; this.epIn = 0; this.epOut = 0; this.ifNum = 0; }
+  constructor(device) { this.device = device; this.epIn = 0; this.epOut = 0; this.ifNum = 0; this.baud = 115200; }
+
+  async _initSequence() {
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x00, value: 0x01, index: 0x00 }); // IFC_ENABLE
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x03, value: 0x0800, index: 0x00 }); // SET_LINE_CTL 8N1
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x07, value: 0x03 | 0x0100 | 0x0200, index: 0x00 }); // SET_MHS DTR=1 RTS=1 + masks
+    const baudBuf = new ArrayBuffer(4);
+    new DataView(baudBuf).setUint32(0, this.baud, true);
+    await this.device.controlTransferOut({ requestType: "vendor", recipient: "interface", request: 0x1E, value: 0, index: 0 }, baudBuf); // IFC_SET_BAUDRATE
+  }
+
+  /* Android's WebUSB stack occasionally stalls the bulk IN endpoint silently
+   * (bus/autosuspend hiccup) — transferIn() just hangs forever, no error, no
+   * data. There is no built-in timeout to catch this. The watchdog in
+   * Console calls this after seeing zero bytes for too long: a USB port
+   * reset reliably kicks the endpoint back to life, but the CP210x forgets
+   * its UART config across the reset, so the init sequence is replayed. */
+  async recover() {
+    try {
+      if (!this.device || !this.device.opened) return;
+      await this.device.reset();
+      await sleep(100);
+      await this._initSequence();
+    } catch (e) {
+      console.warn("[crx3 usb] recover() failed:", e.message);
+    }
+  }
 
   async open(baud) {
+    this.baud = baud;
     if (this.device.opened) { try { await this.device.close(); } catch (e) {} }
     try { if (this.device.reset) await this.device.reset(); } catch (e) {}
 
@@ -63,12 +90,7 @@ class Cp210xPort {
     this.epOut = chosen.a.endpoints.find(e => e.type === "bulk" && e.direction === "out").endpointNumber;
 
     /* CP210x init sequence — exact order and recipients matter. */
-    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x00, value: 0x01, index: 0x00 }); // IFC_ENABLE
-    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x03, value: 0x0800, index: 0x00 }); // SET_LINE_CTL 8N1
-    await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x07, value: 0x03 | 0x0100 | 0x0200, index: 0x00 }); // SET_MHS DTR=1 RTS=1 + masks
-    const baudBuf = new ArrayBuffer(4);
-    new DataView(baudBuf).setUint32(0, baud, true);
-    await this.device.controlTransferOut({ requestType: "vendor", recipient: "interface", request: 0x1E, value: 0, index: 0 }, baudBuf); // IFC_SET_BAUDRATE
+    await this._initSequence();
   }
 
   async write(bytes) { await this.device.transferOut(this.epOut, bytes); }
@@ -106,7 +128,10 @@ class WebSerialPort {
 
 /* ─────────────────────────── API-mode console ───────────────────────────── */
 class Console {
-  constructor() { this.port = null; this.rx = ""; this.connected = false; this.transport = ""; this._id = 0; this._chain = Promise.resolve(); }
+  constructor() {
+    this.port = null; this.rx = ""; this.connected = false; this.transport = ""; this._id = 0; this._chain = Promise.resolve();
+    this._lastRxAt = 0; this._lastRecoverAt = 0; this._watchdogTimer = null; this._keepAliveTimer = null;
+  }
 
   async connect(onStatus) {
     /* Android's Web Serial implementation (when present at all) does not
@@ -137,7 +162,11 @@ class Console {
     await this.port.open(115200);
     this.connected = true;
     this.rx = "";
+    this._lastRxAt = Date.now();
+    this._lastRecoverAt = 0;
     this._readLoop();
+    this._startWatchdog();
+    this._startKeepAlive();
 
     /* Opening the port very likely reset the board (DTR pulse on the CP210x
      * auto-reset circuit), so the firmware is mid-boot for a couple seconds
@@ -162,6 +191,7 @@ class Console {
       try {
         const bytes = await this.port.read();
         if (bytes && bytes.length) {
+          this._lastRxAt = Date.now();
           this.rx += dec.decode(bytes, { stream: true });
           if (this.rx.length > 200000) this.rx = this.rx.slice(-100000);
         }
@@ -184,6 +214,40 @@ class Console {
         await sleep(10);
       }
     }
+  }
+
+  /* Android's WebUSB bulk IN endpoint can silently stall (bus/autosuspend
+   * hiccup) — no error, no data, transferIn() just hangs forever with
+   * nothing to catch. That is the "recognized by the browser but every
+   * function hangs, then comes back on its own after a while" symptom —
+   * PC/Web Serial never shows it because desktop Chrome's Web Serial isn't
+   * subject to the same USB power management. If literally nothing has
+   * arrived in 9s despite the keep-alive ping below running every 5s, force
+   * a USB port reset instead of waiting for Android to notice on its own. */
+  _startWatchdog() {
+    if (this._watchdogTimer) clearInterval(this._watchdogTimer);
+    this._watchdogTimer = setInterval(() => {
+      if (!this.connected || this.transport !== "usb" || !this.port || typeof this.port.recover !== "function") return;
+      const idleFor = Date.now() - this._lastRxAt;
+      const sinceRecover = Date.now() - this._lastRecoverAt;
+      if (idleFor > 9000 && sinceRecover > 15000) {
+        this._lastRecoverAt = Date.now();
+        console.warn("[crx3 usb] link looks stalled (" + idleFor + "ms idle) — resetting USB port");
+        this.port.recover();
+      }
+    }, 3000);
+  }
+
+  /* Keeps the bus from ever going idle long enough for Android's power
+   * manager to autosuspend the USB interface, and doubles as an early health
+   * probe feeding the watchdog above (its own failure doesn't matter to the
+   * user — nothing was actually being requested). */
+  _startKeepAlive() {
+    if (this._keepAliveTimer) clearInterval(this._keepAliveTimer);
+    this._keepAliveTimer = setInterval(() => {
+      if (!this.connected) return;
+      this.apiRequest("GET", "/ping", null, 3000).catch(() => {});
+    }, 5000);
   }
 
   /* One request at a time (queued); returns {status, bytes}. */
@@ -226,7 +290,14 @@ class Console {
     throw new Error("timeout: " + verb + " " + path);
   }
 
-  async disconnect() { this.connected = false; await sleep(60); if (this.port) await this.port.close(); this.port = null; }
+  async disconnect() {
+    this.connected = false;
+    if (this._watchdogTimer)  { clearInterval(this._watchdogTimer);  this._watchdogTimer  = null; }
+    if (this._keepAliveTimer) { clearInterval(this._keepAliveTimer); this._keepAliveTimer = null; }
+    await sleep(60);
+    if (this.port) await this.port.close();
+    this.port = null;
+  }
 }
 
 const con = new Console();
@@ -426,13 +497,32 @@ async function doConnect() {
 }
 
 function onUnplug() {
-  if (con.connected) { con.connected = false; con.port = null; }
+  if (con.connected) {
+    con.connected = false;
+    if (con._watchdogTimer)  { clearInterval(con._watchdogTimer);  con._watchdogTimer  = null; }
+    if (con._keepAliveTimer) { clearInterval(con._keepAliveTimer); con._keepAliveTimer = null; }
+    con.port = null;
+  }
   buildConnectUI();
   const m = document.getElementById("usb-connect-msg");
   if (m) m.textContent = "cabo removido — reconecte.";
 }
 if (navigator.usb) navigator.usb.addEventListener("disconnect", onUnplug);
 if (navigator.serial) navigator.serial.addEventListener("disconnect", onUnplug);
+
+/* Mobile Chrome throttles/pauses background tabs, which can leave the link
+ * looking dead when the user switches back — a ping right away recovers
+ * much faster than waiting for the periodic watchdog to notice. */
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState !== "visible" || !con.connected) return;
+  con.apiRequest("GET", "/ping", null, 3000).catch(function () {
+    if (con.connected && con.transport === "usb" && con.port && typeof con.port.recover === "function") {
+      console.warn("[crx3 usb] tab became visible but link didn't answer — resetting USB port");
+      con._lastRecoverAt = Date.now();
+      con.port.recover();
+    }
+  });
+});
 
 /* DOM is already parsed (this script sits at the end of <body>). */
 buildConnectUI();
