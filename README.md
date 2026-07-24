@@ -66,8 +66,10 @@ This fork's focus: a fully **customizable Evil Twin** (your own SSID, your own c
 
 **Required**
 
-- ESP32 DevKit V1, or any board using the same ESP32 (Xtensa LX6, dual-core) chip. Developed and tested on the standard 38-pin DevKit V1; ESP32-WROOM-32 / WROVER modules are expected to work too. **ESP32-S2, S3, C3 and other variants are not supported** — different radio architecture.
+- ESP32 DevKit V1, or any board using the same ESP32 (Xtensa LX6, dual-core) chip. Developed and tested on the standard 38-pin DevKit V1; ESP32-WROOM-32 / WROVER modules are expected to work too. **ESP32-S2, S3, C3, C6, H2 and other variants are not supported** — different radio architecture, no raw packet injection.
 - If you have an ESP32-S3 board, the upstream project has a dedicated branch: [`s3-N16R8`](https://github.com/SameerAlSahab/ESP32-Deauther/tree/s3-N16R8).
+
+> **🛒 What to actually buy:** search for **"ESP32 DevKit V1"** or **"ESP32 DevKitC"** — a 38-pin board built around the **ESP32-WROOM-32** module, with **at least 4 MB of flash** (the standard on every board sold today). Ignore any listing that says **S2, S3, C2, C3, C6, or H2** anywhere in the name — those are different chips this firmware doesn't support. The onboard USB-to-serial chip (CP2102 or CH340, doesn't matter which) only affects flashing from a PC; it has no effect on how the firmware runs, since control is 100% over Wi-Fi. Boards go for roughly $5–8 USD on AliExpress/Amazon.
 
 **Optional**
 

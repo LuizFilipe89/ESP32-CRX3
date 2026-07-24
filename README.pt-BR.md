@@ -66,8 +66,10 @@ O foco deste fork: um **Evil Twin totalmente personalizável** (seu próprio SSI
 
 **Obrigatório**
 
-- ESP32 DevKit V1, ou qualquer placa usando o mesmo chip ESP32 (Xtensa LX6, dual-core). Desenvolvido e testado na DevKit V1 padrão de 38 pinos; módulos ESP32-WROOM-32 / WROVER devem funcionar também. **ESP32-S2, S3, C3 e outras variantes não são suportadas** — arquitetura de rádio diferente.
+- ESP32 DevKit V1, ou qualquer placa usando o mesmo chip ESP32 (Xtensa LX6, dual-core). Desenvolvido e testado na DevKit V1 padrão de 38 pinos; módulos ESP32-WROOM-32 / WROVER devem funcionar também. **ESP32-S2, S3, C3, C6, H2 e outras variantes não são suportadas** — arquitetura de rádio diferente, sem injeção de pacotes brutos.
 - Se você tem uma placa ESP32-S3, o projeto original tem uma branch dedicada: [`s3-N16R8`](https://github.com/SameerAlSahab/ESP32-Deauther/tree/s3-N16R8).
+
+> **🛒 O que comprar de verdade:** procure por **"ESP32 DevKit V1"** ou **"ESP32 DevKitC"** — uma placa de 38 pinos construída em cima do módulo **ESP32-WROOM-32**, com **pelo menos 4 MB de flash** (padrão em praticamente toda placa vendida hoje). Ignore qualquer anúncio que tenha **S2, S3, C2, C3, C6 ou H2** em qualquer parte do nome — são chips diferentes que esse firmware não suporta. O chip USB-serial da placa (CP2102 ou CH340, não importa qual) só afeta a gravação pelo PC; não tem nenhum efeito em como o firmware roda, já que o controle é 100% por Wi-Fi. As placas custam em torno de R$25–40 no AliExpress/Mercado Livre.
 
 **Opcional**
 
