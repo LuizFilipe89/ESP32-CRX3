@@ -68,7 +68,7 @@ O foco deste fork: um **Evil Twin totalmente personalizável** (seu próprio SSI
 |---|---|---|
 | 🎯 Desautenticação | 4 métodos, incluindo um que vence o 802.11w (PMF) | Até 16 alvos, intensidade até **50** quadros/rajada |
 | 🤝 Captura de Handshake | Captura o handshake WPA2 de 4 vias → `.pcap` / `.hccapx` | Pra quebrar offline com Hashcat / aircrack-ng |
-| 📡 Beacon Spam | Inunda o ar com redes falsas | Até **200** SSIDs falsos, 4 modos de nomeação |
+| 📡 Beacon Spam | Inunda o ar com redes falsas | Até **250** SSIDs falsos, 4 modos de nomeação |
 | 👻 Modo Fantasma | Espelha os probes de rede salva de dispositivos próximos | Não precisa de alvo |
 | 🎭 Evil Twin | Clone uma rede real **ou** rode seu próprio SSID customizado, com sua própria página de portal | Totalmente personalizável, log de credenciais persiste entre reboots |
 | 🚨 Detector de Deauth | Monitor passivo que sinaliza ataques de deauth por perto | Log de alertas em tempo real |
@@ -146,7 +146,7 @@ Métodos: **Clone de BSSID**, **Deauth Normal**, ou **Captura Silenciosa** (nenh
 
 ### 📡 Beacon Spam
 
-Inunda o ar local com quadros de beacon 802.11 falsos — polui a lista de redes Wi-Fi de todo dispositivo próximo. Escolha quantas redes falsas transmitir, **até 200**, e um estilo de nomeação:
+Inunda o ar local com quadros de beacon 802.11 falsos — polui a lista de redes Wi-Fi de todo dispositivo próximo. Escolha quantas redes falsas transmitir, **até 250**, e um estilo de nomeação:
 
 - **Nomes Comuns** — SSIDs cotidianos e críveis (`TP-Link_5G`, `Casa-WiFi`…)
 - **Textos Aleatórios** — puro ruído

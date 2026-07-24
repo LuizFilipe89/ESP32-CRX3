@@ -68,7 +68,7 @@ This fork's focus: a fully **customizable Evil Twin** (your own SSID, your own c
 |---|---|---|
 | 🎯 Deauthentication | 4 methods, incl. one that beats 802.11w (PMF) | Up to 16 targets, intensity up to **50** frames/burst |
 | 🤝 Handshake Capture | Captures WPA2 4-way handshake → `.pcap` / `.hccapx` | For Hashcat / aircrack-ng offline cracking |
-| 📡 Beacon Spam | Floods the air with fake networks | Up to **200** fake SSIDs, 4 naming modes |
+| 📡 Beacon Spam | Floods the air with fake networks | Up to **250** fake SSIDs, 4 naming modes |
 | 👻 Ghost Mode | Mirrors nearby devices' saved-network probes | No target needed |
 | 🎭 Evil Twin | Clone a real AP **or** run your own custom SSID, with your own portal page | Fully customizable, credential log persists across reboots |
 | 🚨 Deauth Detector | Passive monitor that flags deauth floods nearby | Real-time alert log |
@@ -146,7 +146,7 @@ Methods: **BSSID Clone**, **Normal Deauth**, or **Silent Capture** (no deauth se
 
 ### 📡 Beacon Spam
 
-Floods the local airwaves with fake 802.11 beacon frames — pollutes every nearby device's Wi-Fi scan list. Pick how many fake networks to broadcast, **up to 200**, and a naming style:
+Floods the local airwaves with fake 802.11 beacon frames — pollutes every nearby device's Wi-Fi scan list. Pick how many fake networks to broadcast, **up to 250**, and a naming style:
 
 - **Common Names** — believable everyday SSIDs (`TP-Link_5G`, `Home-WiFi`…)
 - **Random Strings** — pure noise

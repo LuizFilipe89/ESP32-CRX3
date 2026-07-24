@@ -16,7 +16,10 @@
 static const char *TAG = "beacon_spam";
 static esp_timer_handle_t beacon_timer_handle;
 
-#define MAX_SPAM_APS 200
+/* The wire protocol's count field (attack_request_t.method, reused for this
+ * attack type) is a single byte — 255 is a hard ceiling no matter what.
+ * Capped a bit under that instead of pushing to the exact edge. */
+#define MAX_SPAM_APS 250
 typedef struct {
     uint8_t ssid[33];
     uint8_t ssid_len;
@@ -29,10 +32,13 @@ static uint16_t active_spam_count = 20;
 /* Frames actually injected per timer tick. Calibrated against the deauth
  * path's own proven ceiling (up to 50 small ~26-byte frames per 100ms tick,
  * see DEAUTH_INTENSITY_MAX in attack_method.c) — beacon frames here run up
- * to 128 bytes, several times larger, so a much lower per-tick count keeps
- * each burst well inside one tick's real airtime instead of spilling into
- * the next and backing up the driver's TX queue. */
-#define BEACON_BATCH_SIZE 25
+ * to 128 bytes, several times larger, so a lower per-tick count keeps each
+ * burst comfortably inside one tick's real airtime instead of spilling into
+ * the next and backing up the driver's TX queue. Kept deliberately
+ * conservative (not just "as high as seemed to work") because this needs to
+ * hold up over minutes of continuous running, not just look good in a
+ * quick test — see the self-check in timer_send_beacon() below. */
+#define BEACON_BATCH_SIZE 20
 /* Rotating cursor into spam_pool — see timer_send_beacon(). */
 static uint16_t spam_offset = 0;
 
@@ -101,16 +107,37 @@ static void generate_ssid_by_mode(uint8_t *ssid, uint8_t *length, beacon_spam_mo
  * batch guarantees every configured AP gets its own dedicated tick(s)
  * within a bounded, predictable cycle time instead of fighting over one
  * oversized burst. */
+/* Timing budget for one tick, in microseconds. Kept as a named constant so
+ * the self-check below and esp_timer_start_periodic() can't drift apart. */
+#define BEACON_TICK_US 100000
+
 static void timer_send_beacon(void *arg) {
     uint8_t chan = 1;
     wifi_second_chan_t sec;
     esp_wifi_get_channel(&chan, &sec);
 
+    int64_t t0 = esp_timer_get_time();
     uint16_t n = active_spam_count < BEACON_BATCH_SIZE ? active_spam_count : BEACON_BATCH_SIZE;
     for (uint16_t i = 0; i < n; i++) {
         uint16_t idx = spam_offset % active_spam_count;
         wsl_bypasser_send_beacon_frame(spam_pool[idx].bssid, spam_pool[idx].ssid, spam_pool[idx].ssid_len, chan);
         spam_offset++;
+    }
+
+    /* Self-diagnostic instead of a guessed-and-hoped-for batch size: if a
+     * batch is actually eating most of its tick's time budget, that's the
+     * real, hardware-measured signal (not a rough estimate) that
+     * BEACON_BATCH_SIZE is too high for reliable long-run operation and
+     * should be turned down. Rate-limited so it can't itself become a
+     * source of overhead during a long run. */
+    int64_t elapsed_us = esp_timer_get_time() - t0;
+    if (elapsed_us > (BEACON_TICK_US * 8) / 10) {
+        static int64_t last_warn_at = 0;
+        if (t0 - last_warn_at > 5000000) {
+            ESP_LOGW(TAG, "Beacon batch took %lldms of a %dms tick — lower the fake-network count if scans look inconsistent",
+                     (long long) (elapsed_us / 1000), BEACON_TICK_US / 1000);
+            last_warn_at = t0;
+        }
     }
 }
 
@@ -126,13 +153,13 @@ void attack_beacon_spam_start(uint8_t count, beacon_spam_mode_t mode) {
 
     const esp_timer_create_args_t args = { .callback = &timer_send_beacon };
     esp_timer_create(&args, &beacon_timer_handle);
-    /* 50ms tick (was 100ms) — with the round-robin batching above, a shorter
-     * period means a full cycle through a large pool completes faster (e.g.
-     * 200 APs / 25 per tick = 8 ticks -> 400ms instead of 800ms to give
-     * every configured AP at least one beacon), so scans converge on the
-     * complete set of fake networks sooner. */
-    esp_timer_start_periodic(beacon_timer_handle, 50000);
-    uint32_t cycle_ms = ((active_spam_count + BEACON_BATCH_SIZE - 1) / BEACON_BATCH_SIZE) * 50;
+    /* 100ms tick — same interval already proven stable for the deauth path's
+     * own periodic timer. Kept generous on purpose: this needs to survive
+     * minutes of continuous running, and there's headroom to safely lower
+     * later (watch for the self-check warning above) rather than tune
+     * purely from an untested guess. */
+    esp_timer_start_periodic(beacon_timer_handle, BEACON_TICK_US);
+    uint32_t cycle_ms = ((active_spam_count + BEACON_BATCH_SIZE - 1) / BEACON_BATCH_SIZE) * (BEACON_TICK_US / 1000);
     ESP_LOGI(TAG, "Beacon spam started. Mode: %d, %u APs, full cycle ~%lums", mode, active_spam_count, (unsigned long) cycle_ms);
 }
 
