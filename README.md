@@ -117,7 +117,7 @@ On boot, the ESP32 raises its own Wi-Fi access point (the "management AP"). Conn
 
 From there you scan nearby networks, tap one to select it as a target, pick an attack, configure it, and launch — all with live status and inline "what does this do?" explanations next to every option.
 
-**One thing to know going in:** attacks that need exclusive use of the radio (Deauth, Evil Twin, Multi-Clone) temporarily shut down the management AP, so **you'll lose the web UI connection while the attack runs.** This is normal, not a crash — there's no live "stop" button once an attack like this is running, since the web UI itself is what goes down. A configurable timeout brings the AP back automatically; without one, a power cycle is what restores it (the custom-SSID Evil Twin mode is the one exception, with its own dedicated stop route — see below).
+**One thing to know going in:** attacks that need exclusive use of the radio (Deauth, Evil Twin, Multi-Clone, Beacon Spam, Ghost Mode) temporarily shut down the management AP, so **you'll lose the web UI connection while the attack runs.** This is normal, not a crash — there's no live "stop" button once an attack like this is running, since the web UI itself is what goes down. A configurable timeout brings the AP back automatically; without one, a power cycle is what restores it (the custom-SSID Evil Twin mode is the one exception, with its own dedicated stop route — see below).
 
 ---
 
@@ -152,6 +152,8 @@ Floods the local airwaves with fake 802.11 beacon frames — pollutes every near
 - **Random Strings** — pure noise
 - **Rick Roll** — the SSIDs spell out the lyrics, one word per network
 - **Security-themed** — alarming names for a bit of chaos ("FBI Surveillance Van", etc.)
+
+The fake APs don't just sit on one channel — the ESP32 actively **hops across all 13 2.4GHz channels** (~1 second of dwell per channel), so the flood shows up regardless of which channel a nearby phone happens to be scanning, instead of only ever being visible on whatever channel the radio was idling on. Sends are round-robin batched per configured network so the whole pool keeps cycling reliably even at the 250-network cap, with a self-monitoring safety check built in to catch (and warn about, via the serial log) any batch that starts eating too much of its time budget — built to stay stable over minutes of continuous running, not just a quick burst. Since the radio can only be on one channel at a time, this attack takes the management AP down while it runs, same as Deauth and Evil Twin.
 
 ---
 

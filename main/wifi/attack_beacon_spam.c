@@ -42,6 +42,19 @@ static uint16_t active_spam_count = 20;
 /* Rotating cursor into spam_pool — see timer_send_beacon(). */
 static uint16_t spam_offset = 0;
 
+/* Without hopping, every fake AP only ever broadcasts on whatever single
+ * channel the radio happened to be on — a phone scanning a different
+ * channel never sees any of them no matter how many are configured. Hop
+ * across all 13 2.4GHz channels instead so the spam actually covers the
+ * spectrum a real scan sweeps. Since there's only one radio, this moves the
+ * management AP's channel right along with it — same trade-off Deauth/Evil
+ * Twin/Multi-Clone already make, so attack_beacon_spam_start()/_stop() now
+ * bring the management AP down/back up too (see attack.c). */
+#define BEACON_HOP_CHANNELS       13
+#define BEACON_HOP_EVERY_N_TICKS  10   /* ~1s of dwell per channel at the 100ms tick rate */
+static uint8_t  beacon_channel     = 1;
+static uint16_t beacon_hop_counter = 0;
+
 
 static const char *base_names[] = { "TP-Link", "Linksys", "Netgear", "ASUS", "D-Link", "Home", "Office", "Starlink", "EastWest" };
 static const char *suffixes[] = { "_WiFi", "-Guest", "-5G", "_Secure", "" };
@@ -112,15 +125,24 @@ static void generate_ssid_by_mode(uint8_t *ssid, uint8_t *length, beacon_spam_mo
 #define BEACON_TICK_US 100000
 
 static void timer_send_beacon(void *arg) {
-    uint8_t chan = 1;
-    wifi_second_chan_t sec;
-    esp_wifi_get_channel(&chan, &sec);
+    /* Only touch the radio's channel right at the start of a new dwell
+     * period, not every tick — a channel switch has its own settling cost,
+     * and calling it once per second instead of ten times a second is both
+     * cheaper and enough for a scanning device to actually catch us there. */
+    if (beacon_hop_counter == 0) {
+        esp_wifi_set_channel(beacon_channel, WIFI_SECOND_CHAN_NONE);
+    }
+    beacon_hop_counter++;
+    if (beacon_hop_counter >= BEACON_HOP_EVERY_N_TICKS) {
+        beacon_hop_counter = 0;
+        beacon_channel = (beacon_channel % BEACON_HOP_CHANNELS) + 1;
+    }
 
     int64_t t0 = esp_timer_get_time();
     uint16_t n = active_spam_count < BEACON_BATCH_SIZE ? active_spam_count : BEACON_BATCH_SIZE;
     for (uint16_t i = 0; i < n; i++) {
         uint16_t idx = spam_offset % active_spam_count;
-        wsl_bypasser_send_beacon_frame(spam_pool[idx].bssid, spam_pool[idx].ssid, spam_pool[idx].ssid_len, chan);
+        wsl_bypasser_send_beacon_frame(spam_pool[idx].bssid, spam_pool[idx].ssid, spam_pool[idx].ssid_len, beacon_channel);
         spam_offset++;
     }
 
@@ -144,6 +166,8 @@ static void timer_send_beacon(void *arg) {
 void attack_beacon_spam_start(uint8_t count, beacon_spam_mode_t mode) {
     active_spam_count = (count > 0 && count <= MAX_SPAM_APS) ? count : 20;
     spam_offset = 0;
+    beacon_channel = 1;
+    beacon_hop_counter = 0;
 
     for (int i = 0; i < active_spam_count; i++) {
         generate_ssid_by_mode(spam_pool[i].ssid, &spam_pool[i].ssid_len, mode, i);
@@ -160,7 +184,9 @@ void attack_beacon_spam_start(uint8_t count, beacon_spam_mode_t mode) {
      * purely from an untested guess. */
     esp_timer_start_periodic(beacon_timer_handle, BEACON_TICK_US);
     uint32_t cycle_ms = ((active_spam_count + BEACON_BATCH_SIZE - 1) / BEACON_BATCH_SIZE) * (BEACON_TICK_US / 1000);
-    ESP_LOGI(TAG, "Beacon spam started. Mode: %d, %u APs, full cycle ~%lums", mode, active_spam_count, (unsigned long) cycle_ms);
+    uint32_t spectrum_sweep_ms = BEACON_HOP_CHANNELS * BEACON_HOP_EVERY_N_TICKS * (BEACON_TICK_US / 1000);
+    ESP_LOGI(TAG, "Beacon spam started. Mode: %d, %u APs, full pool cycle ~%lums, full %d-channel sweep ~%lums",
+             mode, active_spam_count, (unsigned long) cycle_ms, BEACON_HOP_CHANNELS, (unsigned long) spectrum_sweep_ms);
 }
 
 void attack_beacon_spam_stop() {

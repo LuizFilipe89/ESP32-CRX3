@@ -117,7 +117,7 @@ Ao ligar, o ESP32 sobe seu próprio ponto de acesso Wi-Fi (o "AP de gerência").
 
 A partir daí você escaneia redes próximas, toca numa pra selecioná-la como alvo, escolhe um ataque, configura e lança — tudo com status ao vivo e explicações "o que isso faz?" embutidas ao lado de cada opção.
 
-**Uma coisa importante de saber de antemão:** ataques que precisam de uso exclusivo do rádio (Deauth, Evil Twin, Multi-Clone) desligam temporariamente o AP de gerência, então **você vai perder a conexão com a interface web enquanto o ataque roda.** Isso é normal, não é uma falha — não existe um botão de "parar" ao vivo enquanto um ataque desses está rodando, já que a própria interface web é o que cai. Um timeout configurável traz o AP de volta automaticamente; sem um configurado, um ciclo de energia (desligar e ligar) é o que restaura o acesso (o modo de Evil Twin com SSID customizado é a única exceção, com sua própria rota de parada dedicada — veja abaixo).
+**Uma coisa importante de saber de antemão:** ataques que precisam de uso exclusivo do rádio (Deauth, Evil Twin, Multi-Clone, Beacon Spam, Ghost Mode) desligam temporariamente o AP de gerência, então **você vai perder a conexão com a interface web enquanto o ataque roda.** Isso é normal, não é uma falha — não existe um botão de "parar" ao vivo enquanto um ataque desses está rodando, já que a própria interface web é o que cai. Um timeout configurável traz o AP de volta automaticamente; sem um configurado, um ciclo de energia (desligar e ligar) é o que restaura o acesso (o modo de Evil Twin com SSID customizado é a única exceção, com sua própria rota de parada dedicada — veja abaixo).
 
 ---
 
@@ -152,6 +152,8 @@ Inunda o ar local com quadros de beacon 802.11 falsos — polui a lista de redes
 - **Textos Aleatórios** — puro ruído
 - **Rick Roll** — os SSIDs soletram a letra da música, uma palavra por rede
 - **Temática de Segurança** — nomes alarmantes pra um caos básico ("Van de Vigilância FBI", etc.)
+
+As redes falsas não ficam paradas num canal só — o ESP32 alterna ativamente entre **os 13 canais de 2,4GHz** (~1 segundo de permanência por canal), então a inundação aparece independente de qual canal o celular próximo esteja escaneando, em vez de só ser visível no canal em que o rádio estava parado. Os envios são feitos em lotes rotativos por rede configurada, então o pool inteiro continua ciclando de forma confiável mesmo no limite de 250 redes, com uma checagem de segurança embutida que monitora (e avisa, pelo log serial) qualquer lote que comece a consumir tempo demais do seu orçamento — feito pra se manter estável ao longo de minutos de execução contínua, não só numa rajada rápida. Como o rádio só pode estar em um canal por vez, esse ataque derruba o AP de gerência enquanto roda, assim como o Deauth e o Evil Twin.
 
 ---
 
