@@ -19,6 +19,14 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/* Must match CONFIG_ESP_CONSOLE_UART_BAUDRATE in sdkconfig.defaults. 460800
+ * instead of 115200 per Jason2866/esp32tool's own Android WebUSB notes,
+ * which specifically recommend it for USB-serial chips (CP2102/CH340/FTDI)
+ * — higher throughput means less time with data in flight per response,
+ * which their notes tie directly to Android's tendency to drop (not just
+ * delay) USB bulk transfers when a device dribbles output out slowly. */
+const CRX3_BAUD = 460800;
+
 function b64enc(u8) { let s = ""; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
 function b64dec(b64) { const s = atob(b64); const u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; }
 
@@ -30,7 +38,7 @@ function b64dec(b64) { const s = atob(b64); const u8 = new Uint8Array(s.length);
  * except the baudrate request; (2) DTR/RTS were deasserted on open, but the
  * chip's own init sequence expects them asserted (1/1) with the mask bits set. */
 class Cp210xPort {
-  constructor(device) { this.device = device; this.epIn = 0; this.epOut = 0; this.ifNum = 0; this.baud = 115200; }
+  constructor(device) { this.device = device; this.epIn = 0; this.epOut = 0; this.ifNum = 0; this.baud = CRX3_BAUD; }
 
   async _initSequence() {
     await this.device.controlTransferOut({ requestType: "vendor", recipient: "device", request: 0x00, value: 0x01, index: 0x00 }); // IFC_ENABLE
@@ -187,7 +195,7 @@ class Console {
     } else {
       throw new Error("navegador sem Web Serial nem WebUSB");
     }
-    await this.port.open(115200);
+    await this.port.open(CRX3_BAUD);
     this.connected = true;
     this.rx = "";
     this._lastRxAt = Date.now();

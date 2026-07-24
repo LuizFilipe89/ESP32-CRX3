@@ -38,6 +38,15 @@
 #include "printer.h"
 
 /* ── Framed response helpers ─────────────────────────────────────────────── */
+/* Writes the whole "@RES ..." line with ONE fwrite() instead of separate
+ * printf()/fwrite()/printf() calls. Each stdio call here becomes an
+ * immediate, separate UART write (this console isn't line-buffered), which
+ * for a long base64 payload meant several small back-to-back USB bulk OUT
+ * transfers with tiny gaps between them instead of one contiguous burst.
+ * Jason2866/esp32tool's own Android WebUSB notes document exactly this
+ * pattern (their stub-loader "0xC0 flush" bug) as a cause of Android
+ * actually LOSING bulk transfers, not merely delaying them — independent of
+ * anything the client can do to recover. One write closes that gap. */
 static void api_respond(const char *id, int status, const uint8_t *payload, size_t len) {
     if (len == 0 || payload == NULL) {
         printf("@RES %s %d 0 \n", id, status);
@@ -54,10 +63,22 @@ static void api_respond(const char *id, int status, const uint8_t *payload, size
         fflush(stdout);
         return;
     }
-    printf("@RES %s %d %u ", id, status, (unsigned) len);
-    fwrite(b64, 1, olen, stdout);
-    printf("\n");
+
+    char header[48];
+    int hlen = snprintf(header, sizeof(header), "@RES %s %d %u ", id, status, (unsigned) len);
+    char *frame = malloc((size_t) hlen + olen + 1);
+    if (!frame) {
+        free(b64);
+        printf("@RES %s 500 0 \n", id);
+        fflush(stdout);
+        return;
+    }
+    memcpy(frame, header, (size_t) hlen);
+    memcpy(frame + hlen, b64, olen);
+    frame[(size_t) hlen + olen] = '\n';
+    fwrite(frame, 1, (size_t) hlen + olen + 1, stdout);
     fflush(stdout);
+    free(frame);
     free(b64);
 }
 
