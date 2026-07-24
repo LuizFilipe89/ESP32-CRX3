@@ -256,8 +256,8 @@ var I18N = {
         },
         methods: {
             3: { title: "Deauth Methods", items: [
-                { value: 0, name: "BSSID Clone (Aggressive)", desc: "Raises a rogue AP with the target's BSSID so clients get confused and drop. Effective against 802.11w." },
                 { value: 1, name: "Normal Deauth", desc: "Classic broadcast deauth frames aimed at the whole AP. Supports multiple targets at once." },
+                { value: 0, name: "BSSID Clone (Aggressive)", desc: "Raises a rogue AP with the target's BSSID so clients get confused and drop. Effective against 802.11w." },
                 { value: 3, name: "Multi-Clone Deauth", desc: "Rogue AP plus a flood of space-padded SSID clones." },
                 { value: 4, name: "Targeted Clients", desc: "Sniffs the stations actually connected to the AP and deauths each one directly, with a broadcast fallback. Best against stubborn devices." }
             ]},
@@ -494,8 +494,8 @@ var I18N = {
         },
         methods: {
             3: { title: "Métodos de Deauth", items: [
-                { value: 0, name: "Clone de BSSID (Agressivo)", desc: "Sobe um AP falso com o BSSID do alvo para confundir os clientes e derrubá-los. Eficaz contra 802.11w." },
                 { value: 1, name: "Deauth Normal", desc: "Quadros de deauth clássicos em broadcast para todo o AP. Suporta vários alvos ao mesmo tempo." },
+                { value: 0, name: "Clone de BSSID (Agressivo)", desc: "Sobe um AP falso com o BSSID do alvo para confundir os clientes e derrubá-los. Eficaz contra 802.11w." },
                 { value: 3, name: "Deauth Multi-Clone", desc: "AP falso mais uma enxurrada de clones de SSID preenchidos com espaços." },
                 { value: 4, name: "Clientes Mirados", desc: "Fareja as estações realmente conectadas ao AP e desautentica cada uma diretamente, com broadcast de reserva. Melhor contra dispositivos teimosos." }
             ]},
@@ -1166,9 +1166,6 @@ function resetAttack() {
     document.getElementById("result-section").style.display        = "none";
     document.getElementById("running-section").style.display       = "none";
     document.getElementById("attack-config-section").style.display = "block";
-    selectedApElements = [];
-    updateSelectedChips();
-    updateSelectedCountBadge();
 
     var oReq = new XMLHttpRequest();
     oReq.open("HEAD", "http://192.168.4.1/reset", true);
