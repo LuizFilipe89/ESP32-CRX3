@@ -27,6 +27,20 @@ O foco deste fork: um **Evil Twin totalmente personalizável** (seu próprio SSI
 
 ---
 
+<div align="center">
+
+| Escanear | Configurar Ataque |
+|:---:|:---:|
+| <img src="resources/screenshots/scan.jpg" width="260"/> | <img src="resources/screenshots/attack-config.jpg" width="260"/> |
+| **Evil Twin** | **Configurações — interface bilíngue** |
+| <img src="resources/screenshots/evil-twin.jpg" width="260"/> | <img src="resources/screenshots/settings.jpg" width="260"/> |
+| **Impressora (em desenvolvimento)** | |
+| <img src="resources/screenshots/printer.jpg" width="260"/> | |
+
+</div>
+
+---
+
 ## Sumário
 
 - [Visão Geral Rápida dos Recursos](#visão-geral-rápida-dos-recursos)
