@@ -23,10 +23,28 @@
 
 static const char *TAG = "printer";
 
-#define PRN_PORT           9100
+/* HP-style printers (JetDirect/LaserJet) reliably speak raw PCL/PJL on
+ * port 9100. Cheap Epson inkjets (L-series and similar) very often don't
+ * open 9100 at all — they only understand their own ESC/P-R raster format,
+ * and many units ship with raw/JetDirect printing disabled by default. Per
+ * Epson's own published port list, 631 (IPP — what AirPrint/"IPP Everywhere"
+ * uses) and 515 (LPR) are supported across their printer line too, so a scan
+ * that only checks 9100 misses most consumer Epson units entirely. Checking
+ * all three, and falling back to an IPP print job when 9100 isn't there,
+ * covers both worlds instead of assuming every printer is HP-shaped. */
+#define PRN_PORT_RAW       9100
+#define PRN_PORT_IPP       631
+#define PRN_PORT_LPR       515
+static const uint16_t PRN_SCAN_PORTS[] = { PRN_PORT_RAW, PRN_PORT_IPP, PRN_PORT_LPR };
+#define PRN_SCAN_PORT_COUNT (sizeof(PRN_SCAN_PORTS) / sizeof(PRN_SCAN_PORTS[0]))
+
 #define PRN_MAX_PRINTERS   32
 #define PRN_SCAN_BATCH     8
-#define PRN_SCAN_TMO_US    400000     /* 400 ms per connect batch */
+/* 600ms, not the original 400ms — printers in a power-save/sleep state can
+ * take noticeably longer than an always-on device to wake their network
+ * stack and complete a TCP handshake, and a too-short window here reads as
+ * "nothing found" for a printer that's simply asleep. */
+#define PRN_SCAN_TMO_US    600000
 #define PRN_SCAN_MAX_HOSTS 512        /* clamp very large subnets */
 #define PRN_CONNECT_TMO_MS 4000
 
@@ -138,20 +156,22 @@ void printer_conn_info(char *ip_out, size_t ip_len, char *ssid_out, size_t ssid_
 
 /* ───────────────────────────── Subnet scan ─────────────────────────────── */
 
-static void scan_task(void *arg) {
-    scan_state    = SCAN_RUNNING;
-    found_count   = 0;
-    scan_progress = 0;
+static bool host_already_found(uint32_t h) {
+    struct in_addr ina = { .s_addr = htonl(h) };
+    const char *s = inet_ntoa(ina);
+    for (int i = 0; i < found_count; i++) {
+        if (strcmp(found_ips[i], s) == 0) return true;
+    }
+    return false;
+}
 
-    uint32_t ip   = ntohl(sta_ip.ip.addr);
-    uint32_t mask = ntohl(sta_ip.netmask.addr);
-    uint32_t net  = ip & mask;
-    uint32_t bcast = net | (~mask);
-    uint32_t first = net + 1;
-    uint32_t last  = (bcast > 0) ? bcast - 1 : first;
-    if (last < first) last = first;
-    if (last - first + 1 > PRN_SCAN_MAX_HOSTS) last = first + PRN_SCAN_MAX_HOSTS - 1;
-
+/* One full sweep of [first, last] against a single port. Hosts already in
+ * found_ips (from an earlier port's pass) are skipped so a printer that
+ * answers on more than one port is only reported once. progress_base/
+ * progress_share let the three passes in scan_task() each own a slice of
+ * the overall 0..100 progress bar instead of each one visibly resetting it. */
+static void scan_port_pass(uint32_t first, uint32_t last, uint16_t port,
+                            int progress_base, int progress_share) {
     uint32_t total = last - first + 1;
     uint32_t scanned = 0;
 
@@ -161,6 +181,8 @@ static void scan_task(void *arg) {
         int nb = 0;
 
         for (; nb < PRN_SCAN_BATCH && h <= last; h++) {
+            if (host_already_found(h)) { scanned++; continue; }
+
             int s = socket(AF_INET, SOCK_STREAM, 0);
             if (s < 0) continue;
             int fl = fcntl(s, F_GETFL, 0);
@@ -168,7 +190,7 @@ static void scan_task(void *arg) {
 
             struct sockaddr_in sa = {0};
             sa.sin_family = AF_INET;
-            sa.sin_port   = htons(PRN_PORT);
+            sa.sin_port   = htons(port);
             sa.sin_addr.s_addr = htonl(h);
 
             int r = connect(s, (struct sockaddr *) &sa, sizeof(sa));
@@ -201,17 +223,40 @@ static void scan_task(void *arg) {
                         struct in_addr ina = { .s_addr = htonl(addrs[i]) };
                         strncpy(found_ips[found_count], inet_ntoa(ina), 15);
                         found_ips[found_count][15] = '\0';
-                        ESP_LOGI(TAG, "Printer found: %s", found_ips[found_count]);
+                        ESP_LOGI(TAG, "Printer found: %s (port %u)", found_ips[found_count], port);
                         found_count++;
                     }
                 }
                 close(fds[i]);
             }
+            scanned += nb;
         }
 
-        scanned += nb;
-        scan_progress = total ? (int)((scanned * 100) / total) : 100;
+        int pass_pct = total ? (int)((scanned * 100) / total) : 100;
+        scan_progress = progress_base + (pass_pct * progress_share) / 100;
         vTaskDelay(1);   /* yield to keep the web server responsive */
+    }
+}
+
+static void scan_task(void *arg) {
+    scan_state    = SCAN_RUNNING;
+    found_count   = 0;
+    scan_progress = 0;
+
+    uint32_t ip   = ntohl(sta_ip.ip.addr);
+    uint32_t mask = ntohl(sta_ip.netmask.addr);
+    uint32_t net  = ip & mask;
+    uint32_t bcast = net | (~mask);
+    uint32_t first = net + 1;
+    uint32_t last  = (bcast > 0) ? bcast - 1 : first;
+    if (last < first) last = first;
+    if (last - first + 1 > PRN_SCAN_MAX_HOSTS) last = first + PRN_SCAN_MAX_HOSTS - 1;
+
+    /* Raw (9100) first — it's the cheapest to act on later — then IPP (631),
+     * then LPR (515), each pass sharing an equal slice of the progress bar. */
+    int share = 100 / PRN_SCAN_PORT_COUNT;
+    for (size_t p = 0; p < PRN_SCAN_PORT_COUNT && found_count < PRN_MAX_PRINTERS; p++) {
+        scan_port_pass(first, last, PRN_SCAN_PORTS[p], (int)(p * share), share);
     }
 
     scan_progress = 100;
@@ -287,6 +332,83 @@ static bool send_all(int s, const char *buf, size_t len) {
     return true;
 }
 
+/* Appends one IPP attribute (tag + name + value, each length-prefixed per
+ * RFC 8010 §3.5) to buf, bounds-checked against buf_size. */
+static bool ipp_put_attr(uint8_t *buf, size_t buf_size, size_t *p,
+                          uint8_t tag, const char *name, const char *value) {
+    size_t nl = strlen(name), vl = strlen(value);
+    if (*p + 1 + 2 + nl + 2 + vl > buf_size) return false;
+    buf[(*p)++] = tag;
+    buf[(*p)++] = (nl >> 8) & 0xFF;
+    buf[(*p)++] = nl & 0xFF;
+    memcpy(&buf[*p], name, nl); *p += nl;
+    buf[(*p)++] = (vl >> 8) & 0xFF;
+    buf[(*p)++] = vl & 0xFF;
+    memcpy(&buf[*p], value, vl); *p += vl;
+    return true;
+}
+
+/* Minimal IPP client — just enough of the Print-Job operation (RFC 8010/
+ * 2911) to get a job accepted by "IPP Everywhere"/AirPrint-class printers,
+ * which by now is effectively every modern inkjet (Epson included — it's
+ * what lets them print driver-free from a phone) even when they don't have
+ * a raw JetDirect port open at all. The response isn't parsed in any
+ * detail — any reply at all after sending the job means the printer's IPP
+ * server accepted the request instead of just resetting the connection,
+ * which is as much as the ESP32 side can honestly claim to know. */
+static bool send_ipp_print(const char *ip, const char *text) {
+    int s = connect_timeout(ip, PRN_PORT_IPP, PRN_CONNECT_TMO_MS);
+    if (s < 0) return false;
+
+    uint8_t ipp[300];
+    size_t p = 0;
+    ipp[p++] = 0x01; ipp[p++] = 0x01;                                      // IPP/1.1
+    ipp[p++] = 0x00; ipp[p++] = 0x02;                                      // operation-id: Print-Job
+    ipp[p++] = 0x00; ipp[p++] = 0x00; ipp[p++] = 0x00; ipp[p++] = 0x01;    // request-id = 1
+    ipp[p++] = 0x01;                                                        // operation-attributes-tag
+
+    char printer_uri[48];
+    snprintf(printer_uri, sizeof(printer_uri), "ipp://%s/ipp/print", ip);
+
+    bool ok =
+        ipp_put_attr(ipp, sizeof(ipp), &p, 0x47, "attributes-charset", "utf-8") &&
+        ipp_put_attr(ipp, sizeof(ipp), &p, 0x48, "attributes-natural-language", "en") &&
+        ipp_put_attr(ipp, sizeof(ipp), &p, 0x45, "printer-uri", printer_uri) &&
+        ipp_put_attr(ipp, sizeof(ipp), &p, 0x42, "requesting-user-name", "crx3") &&
+        ipp_put_attr(ipp, sizeof(ipp), &p, 0x49, "document-format", "text/plain") &&
+        p + 1 <= sizeof(ipp);
+    if (!ok) { close(s); return false; }
+    ipp[p++] = 0x03;   // end-of-attributes-tag
+
+    size_t text_len = text ? strlen(text) : 0;
+    char http_header[160];
+    int hlen = snprintf(http_header, sizeof(http_header),
+        "POST /ipp/print HTTP/1.1\r\n"
+        "Host: %s:%d\r\n"
+        "Content-Type: application/ipp\r\n"
+        "Content-Length: %u\r\n"
+        "Connection: close\r\n\r\n",
+        ip, PRN_PORT_IPP, (unsigned)(p + text_len));
+
+    struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    ok = hlen > 0 && (size_t) hlen < sizeof(http_header)
+      && send_all(s, http_header, hlen)
+      && send_all(s, (char *) ipp, p)
+      && (text_len == 0 || send_all(s, text, text_len));
+
+    if (ok) {
+        char resp[32];
+        struct timeval rtv = { .tv_sec = 3, .tv_usec = 0 };
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &rtv, sizeof(rtv));
+        ok = recv(s, resp, sizeof(resp), 0) > 0;
+    }
+
+    close(s);
+    return ok;
+}
+
 static void print_task(void *arg) {
     job_state = JOB_RUNNING;
     job_done  = 0;
@@ -303,7 +425,9 @@ static void print_task(void *arg) {
     while (tok != NULL) {
         while (*tok == ' ') tok++;
         bool ok = false;
-        int s = connect_timeout(tok, PRN_PORT, PRN_CONNECT_TMO_MS);
+        const char *method = "raw";
+
+        int s = connect_timeout(tok, PRN_PORT_RAW, PRN_CONNECT_TMO_MS);
         if (s >= 0) {
             struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
             setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
@@ -313,10 +437,15 @@ static void print_task(void *arg) {
             ok  = ok && send_all(s, trailer, strlen(trailer));
             ok  = ok && send_all(s, PJL_UEL, strlen(PJL_UEL));
             close(s);
-            ESP_LOGI(TAG, "Print -> %s : %s", tok, ok ? "sent" : "send error");
         } else {
-            ESP_LOGW(TAG, "Print -> %s : connect failed", tok);
+            /* No raw JetDirect port — most Epson consumer inkjets don't open
+             * one at all; they don't speak PCL/PJL like HP's LaserJets do.
+             * Fall back to IPP (631) so the job still has a real path in. */
+            method = "ipp";
+            ok = send_ipp_print(tok, job_text);
         }
+
+        ESP_LOGI(TAG, "Print -> %s via %s: %s", tok, method, ok ? "sent" : "failed");
         if (ok) job_ok++;
         job_done++;
         tok = strtok_r(NULL, ",", &saveptr);

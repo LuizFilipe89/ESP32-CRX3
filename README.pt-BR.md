@@ -204,7 +204,7 @@ Vira a ideia do avesso: coloca o ESP32 em modo de monitor promíscuo passivo e f
 
 ### 🖨️ Ataque à Impressora de Rede (em desenvolvimento)
 
-Entra numa rede Wi-Fi escolhida como estação, escaneia a subrede local por hosts com a porta de impressão bruta aberta (9100 / JetDirect), e pode disparar um trabalho de impressão bruto pra uma ou mais impressoras encontradas. A aba já está presente e funcional na interface, mas esse recurso ainda está sendo refinado — espere arestas soltas se for testar.
+Entra numa rede Wi-Fi escolhida como estação e escaneia a subrede local por impressoras nas portas 9100 (raw/JetDirect), 631 (IPP) ou 515 (LPR) — não só a 9100, já que a maioria das multifuncionais domésticas (Epson incluída) nunca abre uma porta JetDirect e só entende IPP. A impressão tenta primeiro PJL bruto e cai pra uma requisição IPP `Print-Job` mínima quando a 9100 não está aberta, que é o que de fato faz uma impressora da classe IPP/AirPrint aceitar o trabalho. A aba já está presente e funcional na interface, mas esse recurso ainda está sendo refinado — espere arestas soltas se for testar.
 
 ---
 

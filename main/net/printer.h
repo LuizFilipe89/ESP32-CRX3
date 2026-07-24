@@ -1,8 +1,11 @@
 /**
  * @file printer.h
  * @brief Network printer module: joins a chosen Wi-Fi network as a station,
- *        scans the local subnet for hosts with TCP port 9100 (raw / JetDirect)
- *        open, and sends raw PJL/PCL print jobs to selected printers.
+ *        scans the local subnet for printers on port 9100 (raw/JetDirect,
+ *        mainly HP-style), 631 (IPP), or 515 (LPR), and sends a print job to
+ *        selected printers — raw PJL/PCL where 9100 is open, falling back to
+ *        an IPP Print-Job request (what AirPrint-class printers, including
+ *        most consumer Epson inkjets, actually understand) otherwise.
  */
 #ifndef PRINTER_H
 #define PRINTER_H
@@ -28,9 +31,9 @@ const char *printer_conn_state_str(void);
 /** Fills the assigned STA IP and the joined SSID (empty strings if none). */
 void printer_conn_info(char *ip_out, size_t ip_len, char *ssid_out, size_t ssid_len);
 
-/* ── Subnet scan for port 9100 ───────────────────────────────────────────── */
+/* ── Subnet scan ─────────────────────────────────────────────────────────── */
 
-/** Starts an asynchronous scan of the local /24 subnet for open port 9100. */
+/** Starts an asynchronous scan of the local /24 subnet for printers on ports 9100, 631, or 515. */
 esp_err_t printer_scan_start(void);
 
 /** @return "idle" | "scanning" | "done" */

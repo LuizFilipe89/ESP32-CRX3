@@ -375,7 +375,7 @@
 
 
 
-  <!-- Printers (raw port 9100) -->
+  <!-- Printers (raw 9100 / IPP 631 / LPR 515) -->
   <section id="tab-printer" class="tab-panel">
 
     <div class="info-box info-warn">
@@ -412,7 +412,7 @@
     <div class="card" style="margin-top:20px;">
       <div class="card-header"><h3 data-i18n="prn.scanTitle">Find Printers</h3></div>
       <div class="card-body">
-        <p class="form-hint" data-i18n="prn.scanHint">Scans the connected network for devices with TCP port 9100 open.</p>
+        <p class="form-hint" data-i18n="prn.scanHint">Scans the connected network for printers on port 9100 (raw), 631 (IPP), or 515 (LPR).</p>
         <div style="margin-top:14px;">
           <button id="printer-scan-btn" onclick="printerScan()" class="btn-primary" disabled>
             <img src="/icons/analyze.png" style="width:18px;height:18px;filter:brightness(10);" alt="">
