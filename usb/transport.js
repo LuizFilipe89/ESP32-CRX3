@@ -41,18 +41,18 @@ class Cp210xPort {
     await this.device.controlTransferOut({ requestType: "vendor", recipient: "interface", request: 0x1E, value: 0, index: 0 }, baudBuf); // IFC_SET_BAUDRATE
   }
 
-  /* Android's WebUSB stack occasionally stalls the bulk IN endpoint silently
-   * (bus/autosuspend hiccup) — transferIn() just hangs forever, no error, no
-   * data. There is no built-in timeout to catch this. The watchdog in
-   * Console calls this after seeing zero bytes for too long: a USB port
-   * reset reliably kicks the endpoint back to life, but the CP210x forgets
-   * its UART config across the reset, so the init sequence is replayed. */
+  /* Android's WebUSB stack can wedge the connection in ways that don't throw
+   * (silent stall) or that keep throwing on every transfer (degraded-but-
+   * not-dead). A bare device.reset() wasn't enough to reliably clear this in
+   * practice — do a full teardown/rebuild instead: close (which releases the
+   * claimed interface), then run the exact same bring-up open() already
+   * does (device.reset() + reopen + reselect config + reclaim interface +
+   * replay the CP210x init sequence). This is strictly more thorough than a
+   * lighter in-place reset and reuses one proven code path instead of a
+   * second, slightly-different one. */
   async recover() {
     try {
-      if (!this.device || !this.device.opened) return;
-      await this.device.reset();
-      await sleep(100);
-      await this._initSequence();
+      await this.open(this.baud);
     } catch (e) {
       console.warn("[crx3 usb] recover() failed:", e.message);
     }
@@ -131,6 +131,34 @@ class Console {
   constructor() {
     this.port = null; this.rx = ""; this.connected = false; this.transport = ""; this._id = 0; this._chain = Promise.resolve();
     this._lastRxAt = 0; this._lastRecoverAt = 0; this._watchdogTimer = null; this._keepAliveTimer = null;
+    this._consecutiveTimeouts = 0; this._consecutiveReadErrors = 0; this._readLoopGen = 0; this._recovering = false;
+  }
+
+  /* Shared entry point for every recovery trigger below (silence watchdog,
+   * repeated request timeouts, repeated read errors, tab-visible probe).
+   * Single cooldown gate so they can't pile up resets on top of each other.
+   * port.recover() closes+reopens the USB device, which aborts whatever
+   * transferIn() _readLoop was awaiting on the OLD connection with a "device
+   * was disconnected"-class error — that's treated as fatal and the loop
+   * exits. Nothing else would ever restart it, silently leaving the fresh
+   * reconnection with no read loop at all (strictly worse than before), so
+   * this must explicitly kick off a new one afterward. */
+  async _maybeRecover(reason) {
+    if (this._recovering) return;
+    if (!this.connected || this.transport !== "usb" || !this.port || typeof this.port.recover !== "function") return;
+    if (Date.now() - this._lastRecoverAt < 15000) return;
+    this._recovering = true;
+    this._lastRecoverAt = Date.now();
+    this._consecutiveTimeouts = 0;
+    this._consecutiveReadErrors = 0;
+    console.warn("[crx3 usb] recovering USB port (" + reason + ")");
+    try {
+      await this.port.recover();
+    } finally {
+      this._lastRxAt = Date.now();
+      this._readLoop();
+      this._recovering = false;
+    }
   }
 
   async connect(onStatus) {
@@ -187,11 +215,18 @@ class Console {
   }
 
   async _readLoop() {
-    while (this.connected) {
+    /* Generation guard: recover() starts a fresh loop on the new connection
+     * without necessarily knowing whether the old loop has already noticed
+     * the closed device and exited. If it hasn't yet, this stops it cleanly
+     * on its next iteration instead of two loops both reading the same
+     * (new) device concurrently. */
+    const gen = ++this._readLoopGen;
+    while (this.connected && gen === this._readLoopGen) {
       try {
         const bytes = await this.port.read();
         if (bytes && bytes.length) {
           this._lastRxAt = Date.now();
+          this._consecutiveReadErrors = 0;
           this.rx += dec.decode(bytes, { stream: true });
           if (this.rx.length > 200000) this.rx = this.rx.slice(-100000);
         }
@@ -211,7 +246,16 @@ class Console {
                       msg.indexOf("device was disconnected") !== -1 ||
                       msg.indexOf("No device selected") !== -1;
         if (fatal) break;
-        await sleep(10);
+        this._consecutiveReadErrors++;
+        /* A handful of back-to-back transfer errors (not just total silence)
+         * is itself a sign the link is in a bad state — degraded/flaky
+         * throughput can keep producing SOME bytes while still being too
+         * broken for anything to complete, which the silence-only watchdog
+         * below would never catch. Escalate to a port reset instead of
+         * retrying forever at a fixed 10ms. Backoff also stops this loop
+         * from hammering an already-struggling USB stack. */
+        if (this._consecutiveReadErrors >= 15) { this._maybeRecover("15+ consecutive read errors"); }
+        await sleep(Math.min(10 * this._consecutiveReadErrors, 300));
       }
     }
   }
@@ -227,14 +271,8 @@ class Console {
   _startWatchdog() {
     if (this._watchdogTimer) clearInterval(this._watchdogTimer);
     this._watchdogTimer = setInterval(() => {
-      if (!this.connected || this.transport !== "usb" || !this.port || typeof this.port.recover !== "function") return;
       const idleFor = Date.now() - this._lastRxAt;
-      const sinceRecover = Date.now() - this._lastRecoverAt;
-      if (idleFor > 9000 && sinceRecover > 15000) {
-        this._lastRecoverAt = Date.now();
-        console.warn("[crx3 usb] link looks stalled (" + idleFor + "ms idle) — resetting USB port");
-        this.port.recover();
-      }
+      if (idleFor > 9000) this._maybeRecover(idleFor + "ms without a single byte");
     }, 3000);
   }
 
@@ -283,10 +321,20 @@ class Console {
           try { bytes = b64dec(m[3]); }
           catch (e) { await sleep(25); continue; /* still mid-flight somehow; keep waiting */ }
         }
+        this._consecutiveTimeouts = 0;
         return { status, bytes };
       }
       await sleep(25);
     }
+    /* A single slow request isn't unusual, but back-to-back timeouts across
+     * DIFFERENT calls (not just repeated retries of the same one) is the
+     * exact "browser still says connected but nothing works" symptom — the
+     * link is in a bad-but-not-totally-silent state (still trickling some
+     * bytes, e.g. to a patient long-timeout /ap-list, but too degraded for
+     * anything with a normal timeout to complete). The silence-only
+     * watchdog never catches that, so escalate here instead. */
+    this._consecutiveTimeouts++;
+    if (this._consecutiveTimeouts >= 2) this._maybeRecover(this._consecutiveTimeouts + " requests in a row timed out");
     throw new Error("timeout: " + verb + " " + path);
   }
 
@@ -516,11 +564,7 @@ if (navigator.serial) navigator.serial.addEventListener("disconnect", onUnplug);
 document.addEventListener("visibilitychange", function () {
   if (document.visibilityState !== "visible" || !con.connected) return;
   con.apiRequest("GET", "/ping", null, 3000).catch(function () {
-    if (con.connected && con.transport === "usb" && con.port && typeof con.port.recover === "function") {
-      console.warn("[crx3 usb] tab became visible but link didn't answer — resetting USB port");
-      con._lastRecoverAt = Date.now();
-      con.port.recover();
-    }
+    con._maybeRecover("tab became visible but link didn't answer");
   });
 });
 
