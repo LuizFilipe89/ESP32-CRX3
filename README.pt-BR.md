@@ -125,7 +125,7 @@ A partir daí você escaneia redes próximas, toca numa pra selecioná-la como a
 
 ### 🎯 Desautenticação
 
-Envia quadros brutos de desautenticação 802.11 pra desconectar clientes de um ponto de acesso alvo. Até **16 alvos simultâneos**, com intensidade ajustável de 1 a **50 quadros por rajada**.
+Envia quadros brutos de desautenticação 802.11 pra desconectar clientes de um ponto de acesso alvo. Até **16 alvos simultâneos**, com intensidade ajustável de 1 a **50 quadros por rajada** (**10** pros Clientes Mirados — veja o motivo abaixo).
 
 | Método | Como funciona | Melhor contra |
 |---|---|---|
@@ -133,6 +133,8 @@ Envia quadros brutos de desautenticação 802.11 pra desconectar clientes de um 
 | **Clone de BSSID (Agressivo)** | Sobe um AP falso clonando o BSSID do alvo pra confundir clientes | Dispositivos com 802.11w (Proteção de Quadros de Gerência), que ignoram deauth broadcast puro |
 | **Deauth Multi-Clone** | AP falso + uma enxurrada de clones de SSID preenchidos com espaços do alvo | Sobrecarregar tanto a visibilidade quanto a conectividade de uma rede |
 | **Clientes Mirados** | Fareja quais estações estão realmente conectadas e desautentica cada uma diretamente (com fallback em broadcast) | Dispositivos teimosos que ignoram o deauth em broadcast |
+
+O modo Clientes Mirados tem um teto de intensidade mais baixo que os outros (**10** vs **50**) porque a quantidade de quadros multiplica pela quantidade de clientes que ele encontra — um número que cresce sozinho conforme o ataque roda, diferente da quantidade de alvos nos outros métodos, que você escolhe manualmente. A mesma intensidade nominal vira bem mais quadros por tick nesse modo do que no broadcast.
 
 ---
 

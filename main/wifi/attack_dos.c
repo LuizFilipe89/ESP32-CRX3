@@ -76,7 +76,14 @@ void attack_dos_stop() {
             wifictl_mgmt_ap_start();
             break;
         case ATTACK_DOS_METHOD_BROADCAST:
+            /* attack_dos_start() calls wifictl_mgmt_ap_stop() for this method
+             * (see the switch there), but this stop path never restarted it
+             * — every other method that touches the AP (Rogue AP, Super
+             * Clone, Targeted) does. Left as-is, Normal Deauth permanently
+             * dropped the web UI after every run, timeout or not, until a
+             * power cycle. */
             attack_method_broadcast_stop();
+            wifictl_mgmt_ap_start();
             break;
         case ATTACK_DOS_METHOD_SUPER_CLONE:
             attack_method_super_clone_stop();

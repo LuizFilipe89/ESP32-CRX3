@@ -125,7 +125,7 @@ From there you scan nearby networks, tap one to select it as a target, pick an a
 
 ### 🎯 Deauthentication
 
-Sends raw 802.11 deauthentication frames to disconnect clients from a target access point. Up to **16 simultaneous targets**, with intensity adjustable from 1 to **50 frames per burst**.
+Sends raw 802.11 deauthentication frames to disconnect clients from a target access point. Up to **16 simultaneous targets**, with intensity adjustable from 1 to **50 frames per burst** (**10** for Targeted Clients — see why below).
 
 | Method | How it works | Best against |
 |---|---|---|
@@ -133,6 +133,8 @@ Sends raw 802.11 deauthentication frames to disconnect clients from a target acc
 | **BSSID Clone (Aggressive)** | Raises a rogue AP cloning the target's BSSID to confuse clients | Devices with 802.11w (Management Frame Protection), which ignore plain broadcast deauth |
 | **Multi-Clone Deauth** | Rogue AP + a flood of space-padded SSID clones of the target | Overwhelming a network's visibility as well as connectivity |
 | **Targeted Clients** | Sniffs which stations are actually connected, then deauths each one directly (with broadcast fallback) | Stubborn devices that shrug off broadcast deauth |
+
+Targeted Clients caps intensity lower than the other methods (**10** vs **50**) because its frame count multiplies by however many clients it's found — a number that grows on its own as the attack runs, unlike the target count in the other methods, which you pick by hand. The same nominal intensity is a lot more frames/tick there than in broadcast mode.
 
 ---
 

@@ -221,7 +221,7 @@
                       data-i18n-aria="cfg.attackMethodAria" data-i18n-title="cfg.attackMethodAria"
                       aria-label="What does this method do?" title="What does this method do?">i</button>
             </label>
-            <select id="attack_method" disabled onchange="enforceSelectionLimit()">
+            <select id="attack_method" disabled onchange="enforceSelectionLimit(); updateIntensityLimit();">
               <option value="" selected disabled hidden data-i18n="cfg.selectTypeFirst">Select an attack type first</option>
             </select>
           </div>

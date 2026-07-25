@@ -11,32 +11,38 @@
 #ifndef WSL_BYPASSER_H
 #define WSL_BYPASSER_H
 
+#include "esp_err.h"
 #include "esp_wifi_types.h"
 
 /**
  * @brief Sends frame in frame_buffer using esp_wifi_80211_tx but bypasses blocking mechanism
- * 
- * @param frame_buffer 
+ *
+ * @param frame_buffer
  * @param size size of frame buffer
+ * @return ESP_OK on success, or the error esp_wifi_80211_tx() returned (e.g.
+ *         ESP_ERR_NO_MEM if the driver's TX buffer pool is exhausted —
+ *         callers doing a tight burst should check this and back off
+ *         instead of looping straight into more failed allocations).
  */
-void wsl_bypasser_send_raw_frame(const uint8_t *frame_buffer, int size);
+esp_err_t wsl_bypasser_send_raw_frame(const uint8_t *frame_buffer, int size);
 
 /**
  * @brief Sends deauthentication frame with forged source AP from given ap_record
- *  
+ *
  * This will send deauthentication frame acting as frame from given AP, and destination will be broadcast
  * MAC address - \c ff:ff:ff:ff:ff:ff
- * 
- * @param ap_record AP record with valid AP information 
+ *
+ * @param ap_record AP record with valid AP information
+ * @return see wsl_bypasser_send_raw_frame()
  */
-void wsl_bypasser_send_deauth_frame(const wifi_ap_record_t *ap_record);
+esp_err_t wsl_bypasser_send_deauth_frame(const wifi_ap_record_t *ap_record);
 
 
 void wsl_bypasser_send_beacon_frame(uint8_t *bssid, uint8_t *ssid, uint8_t ssid_length, uint8_t channel);
 
+/**
+ * @return see wsl_bypasser_send_raw_frame()
+ */
+esp_err_t wsl_bypasser_send_deauth_targeted(const uint8_t *ap_bssid, const uint8_t *client_mac);
 
-void wsl_bypasser_send_deauth_targeted(const uint8_t *ap_bssid, const uint8_t *client_mac);
-
-
-void wsl_bypasser_send_disassociation_frame(const uint8_t *ap_bssid, const uint8_t *client_mac);
 #endif

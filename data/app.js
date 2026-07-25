@@ -853,6 +853,7 @@ function updateConfigurableFields(el) {
             if (noTimeoutNote) noTimeoutNote.style.display = "block";
             setAttackMethods(methodItems(AttackTypeEnum.ATTACK_TYPE_DOS));
             if (intensityRow) intensityRow.style.display = "block";
+            updateIntensityLimit();
         break;
 
         case AttackTypeEnum.ATTACK_TYPE_BEACON_SPAM:
@@ -884,6 +885,28 @@ function setAttackMethods(items) {
     });
     sel.selectedIndex = 0;
     enforceSelectionLimit();
+}
+
+/* Targeted Clients (DOS method 4) multiplies frame volume by however many
+ * clients get sniffed out — a number the user doesn't directly control,
+ * unlike ap_count in the other DOS methods — so the firmware caps its
+ * intensity lower (TARGETED_INTENSITY_MAX in attack_method.h). Mirror that
+ * here so the slider itself reflects what will actually take effect,
+ * instead of silently clamping a higher value the user picked. */
+function updateIntensityLimit() {
+    var intensityEl = document.getElementById("attack_intensity");
+    var valEl       = document.getElementById("intensity-val");
+    if (!intensityEl) return;
+
+    var type   = parseInt(document.getElementById("attack_type").value);
+    var method = parseInt(document.getElementById("attack_method").value);
+    var max = (type === AttackTypeEnum.ATTACK_TYPE_DOS && method === 4) ? 10 : 50;
+
+    intensityEl.max = max;
+    if (parseInt(intensityEl.value) > max) {
+        intensityEl.value = max;
+        if (valEl) valEl.textContent = max;
+    }
 }
 
 /* ── Run Attack ──────────────────────────────────── */

