@@ -257,8 +257,8 @@ var I18N = {
         methods: {
             3: { title: "Deauth Methods", items: [
                 { value: 1, name: "Normal Deauth", desc: "Classic broadcast deauth frames aimed at the whole AP. Supports multiple targets at once." },
-                { value: 0, name: "BSSID Clone (Aggressive)", desc: "Raises a rogue AP with the target's BSSID so clients get confused and drop. Effective against 802.11w." },
-                { value: 3, name: "Multi-Clone Deauth", desc: "Rogue AP plus a flood of space-padded SSID clones." },
+                { value: 0, name: "🛡️ BSSID Clone (Aggressive)", desc: "Raises a rogue AP with the target's BSSID so clients get confused and drop. 🛡️ Works even against 802.11w (Management Frame Protection) — it never sends a deauth/disassoc frame at all, which is what PMF actually protects; the confusion comes from a second AP claiming the same BSSID instead." },
+                { value: 3, name: "🛡️ Multi-Clone Deauth", desc: "Rogue AP plus a flood of space-padded SSID clones. 🛡️ Same 802.11w immunity as BSSID Clone, for the same reason — it's beacon/rogue-AP based, not deauth/disassoc based." },
                 { value: 4, name: "Targeted Clients", desc: "Sniffs the stations actually connected to the AP and deauths each one directly, with a broadcast fallback. Best against stubborn devices." }
             ]},
             1: { title: "Handshake Methods", items: [
@@ -495,8 +495,8 @@ var I18N = {
         methods: {
             3: { title: "Métodos de Deauth", items: [
                 { value: 1, name: "Deauth Normal", desc: "Quadros de deauth clássicos em broadcast para todo o AP. Suporta vários alvos ao mesmo tempo." },
-                { value: 0, name: "Clone de BSSID (Agressivo)", desc: "Sobe um AP falso com o BSSID do alvo para confundir os clientes e derrubá-los. Eficaz contra 802.11w." },
-                { value: 3, name: "Deauth Multi-Clone", desc: "AP falso mais uma enxurrada de clones de SSID preenchidos com espaços." },
+                { value: 0, name: "🛡️ Clone de BSSID (Agressivo)", desc: "Sobe um AP falso com o BSSID do alvo para confundir os clientes e derrubá-los. 🛡️ Funciona até contra 802.11w (Proteção de Quadros de Gerência) — nunca manda um quadro de deauth/dissociação, que é exatamente o que o PMF protege; a confusão vem de um segundo AP reivindicando o mesmo BSSID." },
+                { value: 3, name: "🛡️ Deauth Multi-Clone", desc: "AP falso mais uma enxurrada de clones de SSID preenchidos com espaços. 🛡️ Mesma imunidade ao 802.11w do Clone de BSSID, pelo mesmo motivo — é baseado em beacon/AP falso, não em deauth/dissociação." },
                 { value: 4, name: "Clientes Mirados", desc: "Fareja as estações realmente conectadas ao AP e desautentica cada uma diretamente, com broadcast de reserva. Melhor contra dispositivos teimosos." }
             ]},
             1: { title: "Métodos de Handshake", items: [

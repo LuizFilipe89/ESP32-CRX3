@@ -66,7 +66,7 @@ O foco deste fork: um **Evil Twin totalmente personalizável** (seu próprio SSI
 
 | Recurso | O que faz | Limites |
 |---|---|---|
-| 🎯 Desautenticação | 4 métodos, incluindo um que vence o 802.11w (PMF) | Até 16 alvos, intensidade até **50** quadros/rajada |
+| 🎯 Desautenticação | 4 métodos, incluindo 🛡️ dois que vencem o 802.11w (PMF) | Até 16 alvos, intensidade até **50** quadros/rajada |
 | 🤝 Captura de Handshake | Captura o handshake WPA2 de 4 vias → `.pcap` / `.hccapx` | Pra quebrar offline com Hashcat / aircrack-ng |
 | 📡 Beacon Spam | Inunda o ar com redes falsas | Até **250** SSIDs falsos, 4 modos de nomeação |
 | 👻 Modo Fantasma | Espelha os probes de rede salva de dispositivos próximos | Não precisa de alvo |
@@ -130,9 +130,11 @@ Envia quadros brutos de desautenticação 802.11 pra desconectar clientes de um 
 | Método | Como funciona | Melhor contra |
 |---|---|---|
 | **Deauth Normal** | Deauth clássico em broadcast mirando o AP inteiro | A maioria das redes abertas/WPA2 |
-| **Clone de BSSID (Agressivo)** | Sobe um AP falso clonando o BSSID do alvo pra confundir clientes | Dispositivos com 802.11w (Proteção de Quadros de Gerência), que ignoram deauth broadcast puro |
-| **Deauth Multi-Clone** | AP falso + uma enxurrada de clones de SSID preenchidos com espaços do alvo | Sobrecarregar tanto a visibilidade quanto a conectividade de uma rede |
+| 🛡️ **Clone de BSSID (Agressivo)** | Sobe um AP falso clonando o BSSID do alvo pra confundir clientes | Dispositivos com 802.11w (Proteção de Quadros de Gerência), que ignoram deauth broadcast puro |
+| 🛡️ **Deauth Multi-Clone** | AP falso + uma enxurrada de clones de SSID preenchidos com espaços do alvo | Sobrecarregar tanto a visibilidade quanto a conectividade de uma rede — também imune a 802.11w |
 | **Clientes Mirados** | Fareja quais estações estão realmente conectadas e desautentica cada uma diretamente (com fallback em broadcast) | Dispositivos teimosos que ignoram o deauth em broadcast |
+
+🛡️ = **funciona até contra redes protegidas por 802.11w.** Os dois métodos marcados nunca mandam um quadro de deauth/dissociação — que é exatamente o que a Proteção de Quadros de Gerência (PMF) protege, então não importa aqui. A confusão vem de um segundo AP reivindicando o mesmo BSSID, algo que o PMF nunca foi feito pra impedir. Deauth Normal e Clientes Mirados dependem de quadros de deauth/dissociação, então um cliente com PMF simplesmente os ignora.
 
 O modo Clientes Mirados tem um teto de intensidade mais baixo que os outros (**10** vs **50**) porque a quantidade de quadros multiplica pela quantidade de clientes que ele encontra — um número que cresce sozinho conforme o ataque roda, diferente da quantidade de alvos nos outros métodos, que você escolhe manualmente. A mesma intensidade nominal vira bem mais quadros por tick nesse modo do que no broadcast.
 

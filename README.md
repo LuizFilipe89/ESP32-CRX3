@@ -66,7 +66,7 @@ This fork's focus: a fully **customizable Evil Twin** (your own SSID, your own c
 
 | Feature | What it does | Limits |
 |---|---|---|
-| 🎯 Deauthentication | 4 methods, incl. one that beats 802.11w (PMF) | Up to 16 targets, intensity up to **50** frames/burst |
+| 🎯 Deauthentication | 4 methods, incl. 🛡️ two that beat 802.11w (PMF) | Up to 16 targets, intensity up to **50** frames/burst |
 | 🤝 Handshake Capture | Captures WPA2 4-way handshake → `.pcap` / `.hccapx` | For Hashcat / aircrack-ng offline cracking |
 | 📡 Beacon Spam | Floods the air with fake networks | Up to **250** fake SSIDs, 4 naming modes |
 | 👻 Ghost Mode | Mirrors nearby devices' saved-network probes | No target needed |
@@ -130,9 +130,11 @@ Sends raw 802.11 deauthentication frames to disconnect clients from a target acc
 | Method | How it works | Best against |
 |---|---|---|
 | **Normal Deauth** | Classic broadcast deauth aimed at the whole AP | Most open/WPA2 networks |
-| **BSSID Clone (Aggressive)** | Raises a rogue AP cloning the target's BSSID to confuse clients | Devices with 802.11w (Management Frame Protection), which ignore plain broadcast deauth |
-| **Multi-Clone Deauth** | Rogue AP + a flood of space-padded SSID clones of the target | Overwhelming a network's visibility as well as connectivity |
+| 🛡️ **BSSID Clone (Aggressive)** | Raises a rogue AP cloning the target's BSSID to confuse clients | Devices with 802.11w (Management Frame Protection), which ignore plain broadcast deauth |
+| 🛡️ **Multi-Clone Deauth** | Rogue AP + a flood of space-padded SSID clones of the target | Overwhelming a network's visibility as well as connectivity — also 802.11w-proof |
 | **Targeted Clients** | Sniffs which stations are actually connected, then deauths each one directly (with broadcast fallback) | Stubborn devices that shrug off broadcast deauth |
+
+🛡️ = **works even against 802.11w-protected networks.** Both marked methods never send a deauth/disassoc frame at all — that's exactly what Management Frame Protection (PMF) guards, so it doesn't matter here. The confusion instead comes from a second AP claiming the same BSSID, which PMF was never designed to stop. Normal Deauth and Targeted Clients both rely on deauth/disassoc frames, so a PMF-capable client will simply ignore them.
 
 Targeted Clients caps intensity lower than the other methods (**10** vs **50**) because its frame count multiplies by however many clients it's found — a number that grows on its own as the attack runs, unlike the target count in the other methods, which you pick by hand. The same nominal intensity is a lot more frames/tick there than in broadcast mode.
 
